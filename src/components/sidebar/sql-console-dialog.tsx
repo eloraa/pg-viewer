@@ -3,12 +3,14 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { FileCode2Icon, Play, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { executeRawSQL } from '@/lib/server/actions';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
 import { Copy } from '../ui/copy';
+import { EditorReact } from '../ui/editor-react';
+import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 
 interface QueryResult {
   success: boolean;
@@ -45,7 +47,7 @@ export function SQLConsoleDialog() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.ctrlKey && e.key === 'Enter') {
       e.preventDefault();
       executeQuery();
@@ -129,18 +131,26 @@ export function SQLConsoleDialog() {
 
         <div className="flex-1 space-y-4 overflow-hidden flex flex-col">
           <div className="space-y-4">
-            <Textarea
-              placeholder="SELECT * FROM your_table WHERE condition = 'value';"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="min-h-[150px] font-mono text-sm resize-none"
-            />
+            <div onKeyDown={handleKeyDown}>
+              <EditorReact
+                value={query}
+                onChange={setQuery}
+                language="sql"
+                height={400}
+                className="border rounded-md"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <Button onClick={executeQuery} disabled={isExecuting || !query.trim()} className="flex items-center gap-2" size="sm">
                 <Play className="h-4 w-4" />
                 {isExecuting ? 'Executing...' : 'Execute Query'}
               </Button>
+              <Link href="/sql-console">
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  Advanced Console
+                </Button>
+              </Link>
               <span className="text-xs text-muted-foreground">Ctrl+Enter to execute</span>
             </div>
           </div>
