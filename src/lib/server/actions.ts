@@ -1,10 +1,15 @@
 'use server';
 
-import { db } from './db';
+import { getDb } from './db';
 import { sql } from 'kysely';
 
 export async function getSchemas() {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const result = await db
       .selectFrom('information_schema.schemata')
       .select('schema_name')
@@ -21,6 +26,11 @@ export async function getSchemas() {
 
 export async function getTables(schemaName: string) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const result = await db
       .selectFrom('information_schema.tables')
       .select(['table_name', 'table_type'])
@@ -41,6 +51,11 @@ export async function getTables(schemaName: string) {
 
 export async function getTableColumns(schemaName: string, tableName: string) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     // Get column information
     const columnsResult = await db
       .selectFrom('information_schema.columns')
@@ -69,7 +84,7 @@ export async function getTableColumns(schemaName: string, tableName: string) {
        AND af.attrelid = con.confrelid
       WHERE
         con.contype = 'f'
-        AND con.conrelid = ${schemaName + '.' + tableName}::regclass
+        AND con.conrelid = ${sql.lit('"' + schemaName + '"."' + tableName + '"')}::regclass
     `;
 
     const foreignKeysResult = await foreignKeysQuery.execute(db);
@@ -130,7 +145,12 @@ export async function getTableColumns(schemaName: string, tableName: string) {
 
 export async function getTableData(schemaName: string, tableName: string, limit: number = 100, offset: number = 0) {
   try {
-    // Get the actual data from the table
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    // Get the actual data from the table - sql.id() handles proper quoting
     const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
     const data = await dataQuery.execute(db);
 
@@ -151,8 +171,15 @@ export async function getTableData(schemaName: string, tableName: string, limit:
   }
 }
 
+
+
 export async function createSchema(schemaName: string) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     await db.schema.createSchema(schemaName).ifNotExists().execute();
     return { success: true, message: `Schema '${schemaName}' created successfully` };
   } catch (error) {
@@ -163,6 +190,11 @@ export async function createSchema(schemaName: string) {
 
 export async function createTable(schemaName: string, tableName: string, columns: Array<{ name: string; type: string; nullable: boolean }>) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const columnDefinitions = columns.map(col => `"${col.name}" ${col.type}${col.nullable ? '' : ' NOT NULL'}`).join(', ');
 
     const query = `CREATE TABLE "${schemaName}"."${tableName}" (${columnDefinitions})`;
@@ -176,6 +208,11 @@ export async function createTable(schemaName: string, tableName: string, columns
 
 export async function createView(schemaName: string, viewName: string, query: string) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const createViewQuery = `CREATE VIEW "${schemaName}"."${viewName}" AS ${query}`;
     await sql.raw(createViewQuery).execute(db);
     return { success: true, message: `View '${viewName}' created successfully in schema '${schemaName}'` };
@@ -187,6 +224,11 @@ export async function createView(schemaName: string, viewName: string, query: st
 
 export async function createEnum(schemaName: string, enumName: string, values: string[]) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const enumValues = values.map(val => `'${val}'`).join(', ');
     const query = `CREATE TYPE "${schemaName}"."${enumName}" AS ENUM (${enumValues})`;
     await sql.raw(query).execute(db);
@@ -199,6 +241,11 @@ export async function createEnum(schemaName: string, enumName: string, values: s
 
 export async function createRole(roleName: string, options: { login?: boolean; password?: string; superuser?: boolean }) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     let query = `CREATE ROLE "${roleName}"`;
     const roleOptions = [];
 
@@ -220,6 +267,11 @@ export async function createRole(roleName: string, options: { login?: boolean; p
 
 export async function executeRawSQL(sqlQuery: string) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     const startTime = Date.now();
     const result = await sql.raw(sqlQuery).execute(db);
     const executionTime = Date.now() - startTime;
@@ -243,6 +295,210 @@ export async function executeRawSQL(sqlQuery: string) {
   }
 }
 
+export async function deleteTableRows(schemaName: string, tableName: string, rowData: Array<{ [key: string]: any }>) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    if (rowData.length === 0) {
+      throw new Error('No rows selected for deletion');
+    }
+
+    // Get table columns to identify primary key
+    const columns = await getTableColumns(schemaName, tableName);
+    
+    // Query to find the actual primary key column
+    const primaryKeyQuery = sql`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu 
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type = 'PRIMARY KEY'
+        AND tc.table_schema = ${sql.lit(schemaName)}
+        AND tc.table_name = ${sql.lit(tableName)}
+      ORDER BY kcu.ordinal_position
+      LIMIT 1
+    `;
+    
+    const primaryKeyResult = await primaryKeyQuery.execute(db);
+    const primaryKeyColumn = (primaryKeyResult.rows[0] as { column_name?: string })?.column_name || columns[0]?.name || 'id';
+    
+    // Extract primary key values from row data
+    const primaryKeyValues = rowData.map(row => row[primaryKeyColumn]).filter(val => val != null);
+    
+    if (primaryKeyValues.length === 0) {
+      throw new Error(`No valid primary key values found in column '${primaryKeyColumn}'`);
+    }
+
+    // Build DELETE query using the identified primary key
+    // Using IN instead of ANY for better compatibility
+    const deleteQuery = sql`
+      DELETE FROM ${sql.id(schemaName, tableName)}
+      WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
+    `;
+
+    const result = await deleteQuery.execute(db);
+
+    return {
+      success: true,
+      deletedCount: primaryKeyValues.length,
+      message: `Successfully deleted ${primaryKeyValues.length} row${primaryKeyValues.length === 1 ? '' : 's'}`,
+    };
+  } catch (error) {
+    console.error('Error deleting table rows:', error);
+    return {
+      success: false,
+      deletedCount: 0,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+export async function insertTableRow(schemaName: string, tableName: string, rowData: Record<string, any>) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    // Get table columns to build the insert query
+    const columns = await getTableColumns(schemaName, tableName);
+    
+    // Check if id column is auto-incrementing by looking for default values
+    const idColumn = columns.find(col => col.name === 'id');
+    const isIdAutoIncrement = idColumn && (
+      // Check if there's a default value that looks like a sequence
+      await db
+        .selectFrom('information_schema.columns')
+        .select('column_default')
+        .where('table_schema', '=', schemaName)
+        .where('table_name', '=', tableName)
+        .where('column_name', '=', 'id')
+        .execute()
+        .then(result => {
+          const defaultVal = result[0]?.column_default;
+          return defaultVal && (
+            defaultVal.includes('nextval') || 
+            defaultVal.includes('sequence') ||
+            defaultVal.includes('gen_random_uuid')
+          );
+        })
+        .catch(() => false)
+    );
+    
+    // Filter out columns that shouldn't be inserted
+    const insertableColumns = columns.filter(col => {
+      // Don't filter out id if it's not auto-incrementing or if a value is provided
+      if (col.name === 'id') {
+        return !isIdAutoIncrement || rowData.id !== undefined;
+      }
+      // Filter out common auto-generated fields
+      return col.name !== 'created_at' && col.name !== 'updated_at';
+    });
+
+    // Only include columns that have non-empty values or are nullable with explicit null values
+    const columnsWithValues = insertableColumns.filter(col => {
+      const value = rowData[col.name];
+      
+      // Special handling for id column - include if value is provided
+      if (col.name === 'id' && value !== undefined && value !== '') {
+        return true;
+      }
+      
+      // Include if value is not empty string
+      if (value !== '' && value !== null && value !== undefined) {
+        return true;
+      }
+      // Include if column is nullable and we want to set it to null
+      if ((value === '' || value === null || value === undefined) && col.nullable) {
+        return true;
+      }
+      return false;
+    });
+
+    // Build column names and values arrays
+    const columnNames = columnsWithValues.map(col => col.name);
+    const values = columnNames.map(colName => {
+      const value = rowData[colName];
+      const column = columnsWithValues.find(col => col.name === colName);
+      
+      // Handle null values for nullable columns
+      if (value === null || value === undefined) {
+        return null;
+      }
+      // Handle empty strings - convert to null if column is nullable
+      if (value === '' && column?.nullable) {
+        return null;
+      }
+      return value;
+    });
+
+    if (columnNames.length === 0) {
+      throw new Error('At least one field must be filled to create a new row');
+    }
+
+    // Build the SQL query for error display with pretty formatting
+    const valuesList = values.map((val: any) => 
+      val === null ? 'NULL' : 
+      typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : 
+      String(val)
+    );
+    const columnList = columnNames.map((name: string) => `"${name}"`);
+    
+    const attemptedSql = `INSERT INTO "${schemaName}"."${tableName}" (
+  ${columnList.join(',\n  ')}
+) VALUES (
+  ${valuesList.join(',\n  ')}
+);`;
+
+    // Build INSERT query with RETURNING clause to get the created row
+    const insertQuery = sql`
+      INSERT INTO ${sql.id(schemaName, tableName)} (${sql.join(columnNames.map(name => sql.id(name)))})
+      VALUES (${sql.join(values.map(val => sql.lit(val)))})
+      RETURNING *
+    `;
+
+    let result;
+    try {
+      result = await insertQuery.execute(db);
+    } catch (dbError) {
+      const error = dbError instanceof Error ? dbError : new Error('Database error');
+      (error as any).sqlQuery = attemptedSql;
+      throw error;
+    }
+
+    if (result.rows.length === 0) {
+      const error = new Error('Failed to create new row');
+      (error as any).sqlQuery = attemptedSql;
+      throw error;
+    }
+
+    return {
+      success: true,
+      data: result.rows[0],
+      message: 'Successfully created new row',
+    };
+  } catch (error) {
+    console.error('Error inserting table row:', error);
+    
+    // If this is a database error, try to extract the SQL query
+    let sqlQuery = 'Unable to reconstruct SQL query';
+    if (error instanceof Error && (error as any).sqlQuery) {
+      sqlQuery = (error as any).sqlQuery;
+    }
+    
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      sqlQuery,
+    };
+  }
+}
+
 export async function updateTableData(
   schemaName: string, 
   tableName: string, 
@@ -255,6 +511,11 @@ export async function updateTableData(
   }>
 ) {
   try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
     // We need to identify each row uniquely. For now, we'll assume there's an 'id' column
     // In a production app, you'd want to identify the primary key(s) dynamically
     const updatePromises = changes.map(async (change) => {
@@ -266,7 +527,7 @@ export async function updateTableData(
         throw new Error('Cannot update row: no primary key (id) found');
       }
 
-      // Build UPDATE query
+      // Build UPDATE query - sql.id() handles proper quoting
       const updateQuery = sql`
         UPDATE ${sql.id(schemaName, tableName)}
         SET ${sql.id(column)} = ${newValue}

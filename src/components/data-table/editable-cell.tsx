@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { MonacoEditorPopover } from './monaco-editor-popover';
 
 interface EditableCellProps {
   value: any;
@@ -11,6 +12,7 @@ interface EditableCellProps {
   isActive: boolean;
   isEditing: boolean;
   isChanged?: boolean;
+  nullable?: boolean;
   onActivate: () => void;
   onEdit: () => void;
   onChange: (value: any) => void;
@@ -20,19 +22,20 @@ interface EditableCellProps {
   className?: string;
 }
 
-export function EditableCell({ 
-  value, 
-  dataType, 
-  isActive, 
-  isEditing, 
-  isChanged = false, 
-  onActivate, 
-  onEdit, 
-  onChange, 
-  onSave, 
-  onCancel, 
-  isEditable = true, 
-  className 
+export function EditableCell({
+  value,
+  dataType,
+  isActive,
+  isEditing,
+  isChanged = false,
+  nullable = false,
+  onActivate,
+  onEdit,
+  onChange,
+  onSave,
+  onCancel,
+  isEditable = true,
+  className,
 }: EditableCellProps) {
   const [editValue, setEditValue] = React.useState(value);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -84,10 +87,9 @@ export function EditableCell({
   };
 
   const handleInputBlur = () => {
-    // Only save if the value actually changed
-    if (editValue !== value) {
-      onChange(editValue);
-    }
+    // Always trigger onChange to ensure the current edit value is captured
+    // This is especially important for new rows where we need to track empty values
+    onChange(editValue);
     onSave();
   };
 
@@ -141,18 +143,32 @@ export function EditableCell({
   }
 
   return (
-    <div
-      className={cn(
-        'truncate min-w-0 size-full ring-inset', 
-        isActive && 'bg-tertiary/5 ring-2 ring-tertiary', 
-        isEditing && 'bg-brand-saffron ring-2 ring-brand-saffron-primary',
-        isChanged && !isEditing && 'bg-yellow-100 dark:bg-yellow-900/30 border-l-2 border-yellow-500',
-        className
-      )}
-      onClick={handleSingleClick}
-      onDoubleClick={handleDoubleClick}
+    <MonacoEditorPopover
+      value={value}
+      dataType={dataType}
+      nullable={nullable}
+      onSave={newValue => {
+        onChange(newValue);
+        onSave();
+      }}
+      onCancel={onCancel}
+      disabled={!isEditable}
+      className="absolute right-1 top-1/2 -translate-y-1/2 z-1"
+      ancorClass="truncate min-w-0 size-full ring-inset h-8 flex items-center group relative"
     >
-      {isEditing ? renderEditInput() : <div className="p-2">{renderDisplayValue()}</div>}
-    </div>
+      <div
+        className={cn(
+          'truncate min-w-0 size-full ring-inset h-8 flex items-center group relative',
+          isActive && 'bg-tertiary/5 ring-2 ring-tertiary',
+          isEditing && 'bg-brand-saffron ring-2 ring-brand-saffron-primary',
+          isChanged && !isEditing && 'bg-brand-magenta-primary/5 ring-2 ring-brand-magenta-primary',
+          className
+        )}
+        onClick={handleSingleClick}
+        onDoubleClick={handleDoubleClick}
+      >
+        <div className="px-2 truncate flex-1 min-w-0">{isEditing ? renderEditInput() : renderDisplayValue()}</div>
+      </div>
+    </MonacoEditorPopover>
   );
 }

@@ -9,69 +9,165 @@ import { DataTableColumnHeader } from '@/components/data-table/data-table-column
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Column } from '@tanstack/react-table';
-import { updateTableData } from '@/lib/server/actions';
+import { XIcon } from 'lucide-react';
+import { updateTableData, insertTableRow } from '@/lib/server/actions';
+import { Actions } from './actions';
+import { CreateNewFilter } from './create-new-filter';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Editor } from '@/components/ui/editor';
+import { useTheme } from '@/store/theme';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const schema = searchParams.get('schema');
   const table = searchParams.get('table');
+  const { theme } = useTheme();
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
   const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData } = useTableData(schema, table);
-  
+
   // State for tracking cell changes
-  const [pendingChanges, setPendingChanges] = React.useState<Array<{
-    row: any;
-    column: string;
-    oldValue: any;
-    newValue: any;
-    rowIndex: number;
-  }>>([]);
+  const [pendingChanges, setPendingChanges] = React.useState<
+    Array<{
+      row: any;
+      column: string;
+      oldValue: any;
+      newValue: any;
+      rowIndex: number;
+    }>
+  >([]);
   const [isProcessingChanges, setIsProcessingChanges] = React.useState(false);
   const [resetTrigger, setResetTrigger] = React.useState(0);
 
-  // Handler for cell changes
-  const handleCellChange = React.useCallback(async (changes: Array<{
-    row: any;
-    column: string;
-    oldValue: any;
-    newValue: any;
-    rowIndex: number;
-  }>) => {
-    setPendingChanges(changes);
-    return true; // Return true to indicate the change was accepted
+  // State for selected rows and table instance
+  const [selectedRows, setSelectedRows] = React.useState<any[]>([]);
+  const [tableInstance, setTableInstance] = React.useState<any>(null);
+
+  // State for new row creation
+  const [isCreatingNew, setIsCreatingNew] = React.useState(false);
+  const [newRowData, setNewRowData] = React.useState<any>(null);
+
+  // State for error dialog
+  const [errorDialog, setErrorDialog] = React.useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    sqlQuery?: string;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+  });
+
+  // Helper to show error dialog
+  const showError = React.useCallback((title: string, message: string, sqlQuery?: string) => {
+    setErrorDialog({
+      show: true,
+      title,
+      message,
+      sqlQuery,
+    });
   }, []);
+
+  // Handler for cell changes
+  const handleCellChange = React.useCallback(
+    async (
+      changes: Array<{
+        row: any;
+        column: string;
+        oldValue: any;
+        newValue: any;
+        rowIndex: number;
+      }>
+    ) => {
+      setPendingChanges(changes);
+      return true; // Return true to indicate the change was accepted
+    },
+    []
+  );
 
   // Handler for saving changes
   const handleSaveChanges = React.useCallback(async () => {
-    if (!schema || !table || pendingChanges.length === 0) return;
+    if (!schema || !table) return;
 
-    setIsProcessingChanges(true);
-    try {
-      const result = await updateTableData(schema, table, pendingChanges);
-      
-      if (result.success) {
-        setPendingChanges([]);
-        setResetTrigger(prev => prev + 1); // Reset DataTable state
-        // Refetch table data to show updated values
-        refetchTableData();
-      } else {
-        console.error('Error saving changes:', result.error);
-        // You could show a toast notification here
+    // Check if we're creating a new row or updating existing ones
+    if (isCreatingNew && newRowData && pendingChanges.length > 0) {
+      // Creating new row
+      setIsProcessingChanges(true);
+      try {
+        // Build row data from pending changes
+        const rowData: Record<string, any> = { ...newRowData };
+        pendingChanges.forEach(change => {
+          rowData[change.column] = change.newValue;
+        });
+
+        // Remove the __isNew marker
+        delete rowData.__isNew;
+
+        const result = await insertTableRow(schema, table, rowData);
+
+        if (result.success) {
+          setPendingChanges([]);
+          setIsCreatingNew(false);
+          setNewRowData(null);
+          setResetTrigger(prev => prev + 1);
+          refetchTableData();
+        } else {
+          showError('Error Creating Row', result.error || 'Failed to create new row', (result as any).sqlQuery);
+        }
+      } catch (error) {
+        showError('Error Creating Row', error instanceof Error ? error.message : 'Unknown error occurred');
+      } finally {
+        setIsProcessingChanges(false);
       }
-    } catch (error) {
-      console.error('Error saving changes:', error);
-    } finally {
-      setIsProcessingChanges(false);
+    } else if (pendingChanges.length > 0) {
+      // Updating existing rows
+      setIsProcessingChanges(true);
+      try {
+        const result = await updateTableData(schema, table, pendingChanges);
+
+        if (result.success) {
+          setPendingChanges([]);
+          setResetTrigger(prev => prev + 1);
+          refetchTableData();
+        } else {
+          showError('Error Saving Changes', result.error || 'Failed to save changes');
+        }
+      } catch (error) {
+        showError('Error Saving Changes', error instanceof Error ? error.message : 'Unknown error occurred');
+      } finally {
+        setIsProcessingChanges(false);
+      }
     }
-  }, [schema, table, pendingChanges, refetchTableData]);
+  }, [schema, table, pendingChanges, refetchTableData, isCreatingNew, newRowData]);
 
   // Handler for discarding changes
   const handleDiscardChanges = React.useCallback(() => {
     setPendingChanges([]);
+    setIsCreatingNew(false);
+    setNewRowData(null);
     setResetTrigger(prev => prev + 1); // Trigger reset in DataTable
   }, []);
+
+  // Handler for creating new row
+  const handleCreateNew = React.useCallback(() => {
+    if (!columns) return;
+
+    // Create empty new row with default values
+    const emptyRow: any = { __isNew: true };
+    columns.forEach(col => {
+      if (col.name !== 'id') {
+        // Don't include auto-increment fields
+        emptyRow[col.name] = '';
+      }
+    });
+
+    setNewRowData(emptyRow);
+    setIsCreatingNew(true);
+    setSelectedRows([]); // Clear any selected rows
+    tableInstance?.toggleAllRowsSelected(false);
+  }, [columns, tableInstance]);
 
   // Navigation handler for foreign key relationships
   const handleNavigateToForeignKey = React.useCallback(
@@ -83,6 +179,15 @@ export function TableViewer() {
     },
     [router]
   );
+
+  // Prepare table data including new row if creating
+  const tableDisplayData = React.useMemo(() => {
+    const baseData = tableData?.data || [];
+    if (isCreatingNew && newRowData) {
+      return [newRowData, ...baseData];
+    }
+    return baseData;
+  }, [tableData?.data, isCreatingNew, newRowData]);
 
   // Generate columns for the data table
   const dataColumns = React.useMemo<ExtendedColumnDef<unknown>[]>(() => {
@@ -101,11 +206,25 @@ export function TableViewer() {
           />
         </div>
       ),
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center">
-          <Checkbox checked={row.getIsSelected()} onCheckedChange={value => row.toggleSelected(!!value)} aria-label="Select row" />
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isNewRow = (row.original as any)?.__isNew;
+
+        if (isNewRow) {
+          return (
+            <div className="flex items-center justify-center">
+              <Button size="sm" variant="ghost" className="p-0 flex items-center w-full justify-center" onClick={handleDiscardChanges}>
+                <XIcon className="size-4" />
+              </Button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-center justify-center">
+            <Checkbox checked={row.getIsSelected()} onCheckedChange={value => row.toggleSelected(!!value)} aria-label="Select row" />
+          </div>
+        );
+      },
       enableSorting: false,
       enableHiding: false,
     };
@@ -149,14 +268,16 @@ export function TableViewer() {
             id: `fk_${column.name}_${column.foreignKey.referencedTable}`,
             header: () => <span>{column.foreignKey!.referencedTable}</span>,
             cell: () => (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-6 px-2 py-1 text-xs cursor-pointer"
-                onClick={() => handleNavigateToForeignKey(column.foreignKey!.referencedSchema, column.foreignKey!.referencedTable)}
-              >
-                {column.foreignKey!.referencedTable}
-              </Button>
+              <div className="px-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 px-2 py-1 text-xs cursor-pointer"
+                  onClick={() => handleNavigateToForeignKey(column.foreignKey!.referencedSchema, column.foreignKey!.referencedTable)}
+                >
+                  {column.foreignKey!.referencedTable}
+                </Button>
+              </div>
             ),
             enableSorting: false,
             enableHiding: true,
@@ -206,7 +327,7 @@ export function TableViewer() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div>
       <div className="flex-none p-6 pb-4 border-b">
         <h1 className="text-2xl font-semibold mb-1">
           {schema}.{table}
@@ -217,58 +338,109 @@ export function TableViewer() {
       </div>
 
       <div className="flex-1 overflow-hidden pt-4">
-        {tableData && tableData.data.length > 0 ? (
-          <DataTable
-            columns={dataColumns}
-            data={tableData.data}
-            placeholder={`Search in ${table}...`}
-            search={dataColumns
-              .map(col => ({
-                label: col.accessorKey || 'Unknown',
-                value: col.accessorKey || '',
-              }))
-              .filter(item => item.value !== '')}
-            isEditable={true}
-            onCellChange={handleCellChange}
-            resetTrigger={resetTrigger}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-2">No data found</h3>
-              <p className="text-muted-foreground">The table {table} appears to be empty.</p>
-            </div>
-          </div>
-        )}
+        <DataTable
+          columns={dataColumns}
+          data={tableDisplayData}
+          placeholder={`Search in ${table}...`}
+          search={dataColumns
+            .map(col => ({
+              label: col.accessorKey || 'Unknown',
+              value: col.accessorKey || '',
+            }))
+            .filter(item => item.value !== '')}
+          isEditable={true}
+          onCellChange={handleCellChange}
+          resetTrigger={resetTrigger}
+          onSelectionChange={setSelectedRows}
+          onTableInstance={setTableInstance}
+          customFilter={[
+            {
+              filter: CreateNewFilter,
+              label: 'Create New',
+              props: {
+                onCreateNew: handleCreateNew,
+                disabled: isCreatingNew || isProcessingChanges,
+              },
+            },
+          ]}
+          selectActions={
+            selectedRows && selectedRows.length > 0 && tableInstance && schema && table && !isCreatingNew ? (
+              <Actions data={selectedRows} table={tableInstance} schema={schema} tableName={table} />
+            ) : null
+          }
+        />
       </div>
 
       {/* Fixed bottom bar for save/discard changes */}
-      {pendingChanges.length > 0 && (
+      {(pendingChanges.length > 0 || isCreatingNew) && (
         <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-lg p-4 z-50">
           <div className="flex items-center justify-between max-w-screen-2xl mx-auto">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
-                {pendingChanges.length} unsaved {pendingChanges.length === 1 ? 'change' : 'changes'}
+                {isCreatingNew
+                  ? pendingChanges.length > 0
+                    ? `Creating new row (${pendingChanges.length} ${pendingChanges.length === 1 ? 'field' : 'fields'} filled)`
+                    : 'Creating new row'
+                  : `${pendingChanges.length} unsaved ${pendingChanges.length === 1 ? 'change' : 'changes'}`}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleDiscardChanges}
-                disabled={isProcessingChanges}
-              >
+              <Button variant="outline" onClick={handleDiscardChanges} disabled={isProcessingChanges}>
                 Discard Changes
               </Button>
-              <Button 
-                onClick={handleSaveChanges}
-                disabled={isProcessingChanges}
-              >
-                {isProcessingChanges ? 'Saving...' : 'Save Changes'}
+              <Button onClick={handleSaveChanges} disabled={isProcessingChanges || (isCreatingNew && pendingChanges.length === 0)}>
+                {isProcessingChanges ? (isCreatingNew ? 'Creating...' : 'Saving...') : isCreatingNew ? 'Create Row' : 'Save Changes'}
               </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Error Dialog */}
+      <Dialog open={errorDialog.show} onOpenChange={show => setErrorDialog(prev => ({ ...prev, show }))}>
+        <DialogContent className="md:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-destructive-primary flex items-center gap-2">
+              <XIcon className="h-5 w-5" />
+              {errorDialog.title}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col space-y-4 min-h-0">
+            {/* Error Message */}
+            <div className="text-sm text-muted-foreground">{errorDialog.message}</div>
+
+            {/* SQL Query Display */}
+            {errorDialog.sqlQuery && (
+              <div className="flex-1 min-h-[400px] overflow-hidden">
+                <Editor
+                  value={errorDialog.sqlQuery}
+                  onChange={() => {}} // Read-only
+                  language="sql"
+                  height="400px"
+                  options={{
+                    readOnly: true,
+                    fontSize: 12,
+                    lineNumbers: 'on',
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    theme: theme === 'dark' ? 'vs-dark' : 'vs',
+                    inlayHints: { enabled: 'off' },
+                    padding: { top: 8, bottom: 8 },
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setErrorDialog(prev => ({ ...prev, show: false }))} className="w-full">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
