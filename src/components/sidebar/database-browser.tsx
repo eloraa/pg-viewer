@@ -12,6 +12,7 @@ import { Spinner } from '../ui/spinner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { DatabaseActionDialogs, type DatabaseAction } from './database-action-dialogs';
 import { SQLConsoleDialog } from './sql-console-dialog';
+import Link from 'next/link';
 
 export const DatabaseBrowser = () => {
   const router = useRouter();
