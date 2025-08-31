@@ -50,24 +50,26 @@ export async function getTableColumns(schemaName: string, tableName: string) {
       .orderBy('ordinal_position', 'asc')
       .execute();
 
-    // Get foreign key information
+    // Get foreign key information using pg_catalog (works better with permissions)
     const foreignKeysQuery = sql`
-      SELECT 
-        kcu.column_name,
-        ccu.table_schema AS referenced_schema,
-        ccu.table_name AS referenced_table,
-        ccu.column_name AS referenced_column,
-        tc.constraint_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu 
-        ON tc.constraint_name = kcu.constraint_name 
-        AND tc.constraint_schema = kcu.constraint_schema
-      JOIN information_schema.constraint_column_usage ccu 
-        ON kcu.constraint_name = ccu.constraint_name
-        AND kcu.constraint_schema = ccu.constraint_schema
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND tc.table_schema = ${schemaName}
-        AND tc.table_name = ${tableName}
+      SELECT
+        con.conname AS constraint_name,
+        con.conrelid::regclass AS table_name,
+        a.attname AS column_name,
+        con.confrelid::regclass AS referenced_table,
+        af.attname AS referenced_column,
+        pg_get_constraintdef(con.oid, true) AS definition
+      FROM
+        pg_constraint con
+      JOIN pg_attribute a
+        ON a.attnum = ANY (con.conkey)
+       AND a.attrelid = con.conrelid
+      JOIN pg_attribute af
+        ON af.attnum = ANY (con.confkey)
+       AND af.attrelid = con.confrelid
+      WHERE
+        con.contype = 'f'
+        AND con.conrelid = ${schemaName + '.' + tableName}::regclass
     `;
 
     const foreignKeysResult = await foreignKeysQuery.execute(db);
@@ -79,9 +81,26 @@ export async function getTableColumns(schemaName: string, tableName: string) {
     const foreignKeysMap = new Map();
     foreignKeysResult.rows.forEach((row: any) => {
       console.log('Processing FK row:', row);
+      
+      // Parse referenced table (might include schema and quotes)
+      let referencedTable = row.referenced_table;
+      let referencedSchema = 'public'; // default
+      
+      // Remove quotes if present
+      if (referencedTable.startsWith('"') && referencedTable.endsWith('"')) {
+        referencedTable = referencedTable.slice(1, -1);
+      }
+      
+      // Check if schema is included (e.g., "schema.table")
+      if (referencedTable.includes('.')) {
+        const parts = referencedTable.split('.');
+        referencedSchema = parts[0];
+        referencedTable = parts[1];
+      }
+      
       foreignKeysMap.set(row.column_name, {
-        referencedSchema: row.referenced_schema,
-        referencedTable: row.referenced_table,
+        referencedSchema,
+        referencedTable,
         referencedColumn: row.referenced_column,
         constraintName: row.constraint_name,
       });
@@ -196,5 +215,78 @@ export async function createRole(roleName: string, options: { login?: boolean; p
   } catch (error) {
     console.error('Error creating role:', error);
     throw new Error(`Failed to create role: ${roleName}`);
+  }
+}
+
+export async function executeRawSQL(sqlQuery: string) {
+  try {
+    const startTime = Date.now();
+    const result = await sql.raw(sqlQuery).execute(db);
+    const executionTime = Date.now() - startTime;
+
+    return {
+      success: true,
+      data: result.rows,
+      rowCount: result.rows.length,
+      executionTime,
+      message: `Query executed successfully in ${executionTime}ms`,
+    };
+  } catch (error) {
+    console.error('Error executing SQL query:', error);
+    return {
+      success: false,
+      data: [],
+      rowCount: 0,
+      executionTime: 0,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+export async function updateTableData(
+  schemaName: string, 
+  tableName: string, 
+  changes: Array<{
+    row: any;
+    column: string;
+    oldValue: any;
+    newValue: any;
+    rowIndex: number;
+  }>
+) {
+  try {
+    // We need to identify each row uniquely. For now, we'll assume there's an 'id' column
+    // In a production app, you'd want to identify the primary key(s) dynamically
+    const updatePromises = changes.map(async (change) => {
+      const { row, column, newValue } = change;
+      
+      // Find a unique identifier for the row (assuming 'id' column exists)
+      const rowId = row.id;
+      if (!rowId) {
+        throw new Error('Cannot update row: no primary key (id) found');
+      }
+
+      // Build UPDATE query
+      const updateQuery = sql`
+        UPDATE ${sql.id(schemaName, tableName)}
+        SET ${sql.id(column)} = ${newValue}
+        WHERE id = ${rowId}
+      `;
+
+      return updateQuery.execute(db);
+    });
+
+    await Promise.all(updatePromises);
+
+    return {
+      success: true,
+      message: `Successfully updated ${changes.length} ${changes.length === 1 ? 'cell' : 'cells'}`,
+    };
+  } catch (error) {
+    console.error('Error updating table data:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
   }
 }

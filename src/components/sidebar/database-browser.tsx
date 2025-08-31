@@ -5,18 +5,18 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchemas, useTables } from '@/data/schema/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { DatabaseIcon, FingerprintIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, ScrollIcon, TableIcon } from 'lucide-react';
+import { DatabaseIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, ScrollIcon, TableIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Spinner } from '../ui/spinner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { DatabaseActionDialogs, type DatabaseAction } from './database-action-dialogs';
+import { SQLConsoleDialog } from './sql-console-dialog';
 
 export const DatabaseBrowser = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [selectedSchema, setSelectedSchema] = React.useState<string | null>(searchParams.get('schema'));
   const [selectedTable, setSelectedTable] = React.useState<string | null>(searchParams.get('table'));
   const [dialogAction, setDialogAction] = React.useState<DatabaseAction | null>(null);
@@ -26,23 +26,26 @@ export const DatabaseBrowser = () => {
   const { data: tables, isLoading: tablesLoading, error: tablesError, refetch: refetchTable, isRefetching: tableRefetching } = useTables(selectedSchema);
 
   // Update URL when schema/table changes
-  const updateSearchParams = React.useCallback((schema: string | null, table: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    
-    if (schema) {
-      params.set('schema', schema);
-    } else {
-      params.delete('schema');
-    }
-    
-    if (table) {
-      params.set('table', table);
-    } else {
-      params.delete('table');
-    }
-    
-    router.push(`?${params.toString()}`);
-  }, [searchParams, router]);
+  const updateSearchParams = React.useCallback(
+    (schema: string | null, table: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (schema) {
+        params.set('schema', schema);
+      } else {
+        params.delete('schema');
+      }
+
+      if (table) {
+        params.set('table', table);
+      } else {
+        params.delete('table');
+      }
+
+      router.push(`?${params.toString()}`);
+    },
+    [searchParams, router]
+  );
 
   // Auto-select the first schema when schemas are loaded
   React.useEffect(() => {
@@ -89,6 +92,10 @@ export const DatabaseBrowser = () => {
 
   return (
     <div className="flex flex-col space-y-2 p-4">
+      <div className="space-y-2">
+        <label className="text-sm font-medium sr-only">SQL console</label>
+        <SQLConsoleDialog />
+      </div>
       {/* Schema Selector */}
       <div className="space-y-2">
         <label className="text-sm font-medium sr-only">Schema</label>
@@ -171,12 +178,7 @@ export const DatabaseBrowser = () => {
           ) : tables && tables.length > 0 ? (
             <div className="space-y-1">
               {tables.map(table => (
-                <Button 
-                  key={table.name} 
-                  className="w-full justify-start cursor-pointer" 
-                  variant={selectedTable === table.name ? "secondary" : "ghost"}
-                  onClick={() => handleTableClick(table.name)}
-                >
+                <Button key={table.name} className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
                   <TableIcon />
                   <span className="truncate min-w-0">{table.name}</span>
                 </Button>

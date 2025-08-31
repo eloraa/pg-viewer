@@ -40,7 +40,7 @@ export const Header = ({ panel, sidebarWidth, isCollapsed, setNavOpen }: HeaderP
       <div className="flex items-center justify-between pointer-events-auto pr-2 gap-4" style={{ width: isDesktop && !isCollapsed ? sidebarWidth - 16 : 'auto' }}>
         <Link href="/" className="flex items-center gap-1 min-w-0 truncate">
           <Logo className="size-6 min-w-6" />
-          <span className="truncate min-w-0">Postgres</span>
+          <span className="truncate min-w-0">PostgresViewer</span>
           <sup className="text-tertiary">beta</sup>
         </Link>
         {panel && (
