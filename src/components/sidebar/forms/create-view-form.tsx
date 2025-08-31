@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTables, useTableColumns, useSchemas } from '@/data/schema/schema';
 import { useState } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { ChevronDownIcon, X } from 'lucide-react';
+import { ChevronDownIcon, XIcon } from 'lucide-react';
 
 const viewSchema = z.object({
   schemaName: z.string().min(1, { message: 'Schema is required.' }),
@@ -29,11 +29,13 @@ const viewSchema = z.object({
     }),
   selectedTable: z.string().optional(),
   selectedColumns: z.array(z.string()),
-  conditions: z.array(z.object({
-    column: z.string(),
-    operator: z.string(),
-    value: z.string(),
-  })),
+  conditions: z.array(
+    z.object({
+      column: z.string(),
+      operator: z.string(),
+      value: z.string(),
+    })
+  ),
   query: z.string().min(1, { message: 'SQL query is required.' }),
 });
 
@@ -93,7 +95,14 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
   }, [currentSchema, schemaName, form]);
 
   const createViewMutation = useMutation({
-    mutationFn: async (data: { schemaName: string; viewName: string; selectedTable?: string; selectedColumns: string[]; conditions: Array<{column: string; operator: string; value: string}>; query: string }) => {
+    mutationFn: async (data: {
+      schemaName: string;
+      viewName: string;
+      selectedTable?: string;
+      selectedColumns: string[];
+      conditions: Array<{ column: string; operator: string; value: string }>;
+      query: string;
+    }) => {
       return createView(data.schemaName, data.viewName, data.query);
     },
     onSuccess: () => {
@@ -199,7 +208,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
     updateQueryWithConditions(newConditions);
   };
 
-  const updateQueryWithConditions = (conditions: Array<{column: string; operator: string; value: string}>) => {
+  const updateQueryWithConditions = (conditions: Array<{ column: string; operator: string; value: string }>) => {
     const selectedColumns = form.getValues('selectedColumns');
     const selectedTable = form.getValues('selectedTable');
     const schemaName = form.getValues('schemaName');
@@ -344,35 +353,20 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <FormLabel className="text-base font-medium">CONDITIONS</FormLabel>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addCondition}
-              disabled={!selectedTable}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={addCondition} disabled={!selectedTable}>
               Add condition
             </Button>
           </div>
-          
+
           {form.watch('conditions').map((condition, index) => (
             <div key={index} className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => removeCondition(index)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeCondition(index)} className="h-8 w-8 p-0">
+                <XIcon className="h-4 w-4" />
               </Button>
-              
+
               <span className="text-sm font-medium text-muted-foreground">where</span>
-              
-              <Select
-                value={condition.column}
-                onValueChange={(value) => updateCondition(index, 'column', value)}
-              >
+
+              <Select value={condition.column} onValueChange={value => updateCondition(index, 'column', value)}>
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Column" />
                 </SelectTrigger>
@@ -384,11 +378,8 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
                   ))}
                 </SelectContent>
               </Select>
-              
-              <Select
-                value={condition.operator}
-                onValueChange={(value) => updateCondition(index, 'operator', value)}
-              >
+
+              <Select value={condition.operator} onValueChange={value => updateCondition(index, 'operator', value)}>
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
@@ -400,14 +391,9 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
                   ))}
                 </SelectContent>
               </Select>
-              
-              {(condition.operator !== 'IS NULL' && condition.operator !== 'IS NOT NULL') && (
-                <Input
-                  placeholder="Value"
-                  value={condition.value}
-                  onChange={(e) => updateCondition(index, 'value', e.target.value)}
-                  className="w-32"
-                />
+
+              {condition.operator !== 'IS NULL' && condition.operator !== 'IS NOT NULL' && (
+                <Input placeholder="Value" value={condition.value} onChange={e => updateCondition(index, 'value', e.target.value)} className="w-32" />
               )}
             </div>
           ))}

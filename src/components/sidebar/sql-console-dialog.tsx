@@ -63,19 +63,39 @@ export function SQLConsoleDialog() {
 
     const columns = Object.keys(result.data[0]);
     
-    // Create header row
-    const headerRow = '| ' + columns.join(' | ') + ' |';
+    // Calculate column widths for better alignment
+    const columnWidths = columns.map(col => {
+      const headerLength = col.length;
+      const maxDataLength = Math.max(
+        ...result.data.map(row => {
+          const value = row[col];
+          if (value === null) return 4; // "NULL"
+          if (typeof value === 'object') return JSON.stringify(value).length;
+          return String(value).length;
+        })
+      );
+      return Math.max(headerLength, maxDataLength, 3); // Minimum width of 3 for separator
+    });
     
-    // Create separator row
-    const separatorRow = '| ' + columns.map(() => '---').join(' | ') + ' |';
+    // Create header row with proper spacing
+    const headerRow = '| ' + columns.map((col, i) => col.padEnd(columnWidths[i])).join(' | ') + ' |';
     
-    // Create data rows
+    // Create separator row with proper alignment
+    const separatorRow = '| ' + columnWidths.map(width => '-'.repeat(width)).join(' | ') + ' |';
+    
+    // Create data rows with proper spacing
     const dataRows = result.data.map(row => {
-      const values = columns.map(col => {
+      const values = columns.map((col, i) => {
         const value = row[col];
-        if (value === null) return 'NULL';
-        if (typeof value === 'object') return JSON.stringify(value);
-        return String(value);
+        let displayValue: string;
+        if (value === null) {
+          displayValue = 'NULL';
+        } else if (typeof value === 'object') {
+          displayValue = JSON.stringify(value);
+        } else {
+          displayValue = String(value);
+        }
+        return displayValue.padEnd(columnWidths[i]);
       });
       return '| ' + values.join(' | ') + ' |';
     });
@@ -162,7 +182,7 @@ export function SQLConsoleDialog() {
                             {result.data.map((row, index) => (
                               <TableRow key={index}>
                                 {Object.values(row).map((value, cellIndex) => (
-                                  <TableCell key={cellIndex} className="min-w-0 truncate">
+                                  <TableCell key={cellIndex} className="min-w-0 truncate p-2">
                                     {value === null ? <span className="text-muted-foreground italic">NULL</span> : typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                   </TableCell>
                                 ))}

@@ -143,17 +143,23 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
 
   // Helper functions for cell editing
   const getCellKey = (rowIndex: number, columnId: string) => `${rowIndex}-${columnId}`;
-  
-  const isCellChanged = React.useCallback((rowIndex: number, columnId: string) => {
-    const cellKey = getCellKey(rowIndex, columnId);
-    return pendingChanges.has(cellKey);
-  }, [pendingChanges]);
 
-  const getCellValue = React.useCallback((rowIndex: number, columnId: string, originalValue: any) => {
-    const cellKey = getCellKey(rowIndex, columnId);
-    const change = pendingChanges.get(cellKey);
-    return change ? change.newValue : originalValue;
-  }, [pendingChanges]);
+  const isCellChanged = React.useCallback(
+    (rowIndex: number, columnId: string) => {
+      const cellKey = getCellKey(rowIndex, columnId);
+      return pendingChanges.has(cellKey);
+    },
+    [pendingChanges]
+  );
+
+  const getCellValue = React.useCallback(
+    (rowIndex: number, columnId: string, originalValue: any) => {
+      const cellKey = getCellKey(rowIndex, columnId);
+      const change = pendingChanges.get(cellKey);
+      return change ? change.newValue : originalValue;
+    },
+    [pendingChanges]
+  );
 
   const handleCellActivate = React.useCallback((rowIndex: number, columnId: string) => {
     setActiveCell({ rowIndex, columnId });
@@ -309,7 +315,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                 customState !== undefined ? (
                   <CustomRow<TData> key={row.id} row={row} customState={customState} onClick={onClick} />
                 ) : (
-                  <TableRow key={row.id} data-selected={row.getIsSelected()}>
+                  <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as any)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
                     {row.getVisibleCells().map((cell, cellIndex) => {
                       const rowIndex = parseInt(row.id);
                       const columnId = cell.column.id;
@@ -325,13 +331,15 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                         const currentValue = getCellValue(rowIndex, accessorKey, originalValue);
                         const isChangedCell = isCellChanged(rowIndex, accessorKey);
                         const dataType = (cell.column.columnDef.meta as any)?.type;
+                        const nullable = (cell.column.columnDef.meta as any)?.nullable;
 
                         return (
                           <TableCell key={cell.id} className="p-0 max-w-60">
-                            <div className="overflow-hhiden flex size-full">
+                            <div className="flex size-full relative">
                               <EditableCell
                                 value={currentValue}
                                 dataType={dataType}
+                                nullable={nullable}
                                 isActive={isActive}
                                 isEditing={isEditing}
                                 isChanged={isChangedCell}

@@ -159,7 +159,6 @@ export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defa
         <div className="flex items-center gap-2 flex-col md:flex-row">
           {selectedRows > 0 && isDesktop && (
             <>
-              <span className="text-sm text-muted-foreground">{selectedRows} selected</span>
               {Array.isArray(selectActions) ? selectActions.map((action, index) => <div key={index}>{action}</div>) : selectActions}
             </>
           )}
