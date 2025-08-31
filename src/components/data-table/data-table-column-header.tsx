@@ -1,5 +1,5 @@
 import { type Column } from '@tanstack/react-table';
-import { cn } from '@/lib/utils';
+import { cn, getShortDataType } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { ArrowDownIcon, ArrowUpIcon, EyeOff, ChevronsUpDown, ExternalLink } from 'lucide-react';
@@ -11,19 +11,12 @@ interface DataTableColumnHeaderProps<TData> {
   dataType?: string;
 }
 
-export function DataTableColumnHeader<TData>({ 
-  column, 
-  title, 
-  className, 
-  dataType 
-}: DataTableColumnHeaderProps<TData>) {
+export function DataTableColumnHeader<TData>({ column, title, className, dataType }: DataTableColumnHeaderProps<TData>) {
   if (!column.getCanSort()) {
     return (
       <div className={cn('flex flex-col', className)}>
         <span>{title}</span>
-        {dataType && (
-          <span className="text-xs text-muted-foreground font-mono">{dataType}</span>
-        )}
+        {dataType && <span className="text-xs text-muted-foreground font-mono">{getShortDataType(dataType)}</span>}
       </div>
     );
   }
@@ -34,7 +27,9 @@ export function DataTableColumnHeader<TData>({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="-ml-3 text-left h-8 data-[state=open]:bg-accent/15">
-              <span>{title}</span>
+              <div>
+                <span>{title}</span> {dataType && <span className="text-xs text-muted-foreground/70 font-mono -ml-3 pl-3">{getShortDataType(dataType)}</span>}
+              </div>
               {column.getIsSorted() === 'desc' ? (
                 <ArrowDownIcon className="ml-2 h-4 w-4" />
               ) : column.getIsSorted() === 'asc' ? (
@@ -61,9 +56,6 @@ export function DataTableColumnHeader<TData>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {dataType && (
-        <span className="text-xs text-muted-foreground font-mono -ml-3 pl-3">{dataType}</span>
-      )}
     </div>
   );
 }
