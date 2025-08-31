@@ -16,6 +16,8 @@ import { CreateNewFilter } from './create-new-filter';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Editor } from '@/components/ui/editor';
 import { useTheme } from '@/store/theme';
+import { useSidebarStore } from '@/store/sidebar';
+import { cn } from '@/lib/utils';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
@@ -23,6 +25,7 @@ export function TableViewer() {
   const schema = searchParams.get('schema');
   const table = searchParams.get('table');
   const { theme } = useTheme();
+  const { isExpanded } = useSidebarStore();
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
   const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData } = useTableData(schema, table);
@@ -327,21 +330,13 @@ export function TableViewer() {
   }
 
   return (
-    <div>
-      <div className="flex-none p-6 pb-4 border-b">
-        <h1 className="text-2xl font-semibold mb-1">
-          {schema}.{table}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {tableData?.total || 0} rows • {columns?.length || 0} columns
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-hidden pt-4">
+    <>
+      <div className="flex-1 overflow-hidden pt-1">
         <DataTable
           columns={dataColumns}
           data={tableDisplayData}
           placeholder={`Search in ${table}...`}
+          toolbarClassName={cn(isExpanded ? 'pr-14' : 'pl-4 pr-4.5')}
           search={dataColumns
             .map(col => ({
               label: col.accessorKey || 'Unknown',
@@ -441,6 +436,6 @@ export function TableViewer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

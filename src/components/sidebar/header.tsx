@@ -9,6 +9,7 @@ import * as React from 'react';
 import { useMediaQuery } from '@/lib/hooks/use-media-query';
 import { Logo } from '../ui/logo';
 import { Dropdown } from './dropdown';
+import { useSidebarStore } from '@/store/sidebar';
 
 interface HeaderProps {
   panel: ImperativePanelHandle | null;
@@ -20,8 +21,11 @@ interface HeaderProps {
 export const Header = ({ panel, sidebarWidth, isCollapsed, setNavOpen }: HeaderProps) => {
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
+  const { expandSidebar: expandSidebarStore, collapseSidebar: collapseSidebarStore } = useSidebarStore();
+
   const collapseSidebar = () => {
     if (panel) panel.collapse();
+    collapseSidebarStore();
   };
   const expandSidebar = () => {
     const panelElement = getPanelElement('sidebar') as HTMLElement;
@@ -29,6 +33,7 @@ export const Header = ({ panel, sidebarWidth, isCollapsed, setNavOpen }: HeaderP
     if (panelElement.offsetWidth <= 0) {
       if (panel) panel.resize(25);
     }
+    expandSidebarStore();
   };
   return (
     <div

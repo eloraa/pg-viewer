@@ -20,11 +20,9 @@ import {
 } from '@tanstack/react-table';
 import { DataTableToolbar } from './data-table-toolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DataTablePagination } from './data-table-pagination';
 import { type LucideIcon } from 'lucide-react';
 import { DataTableSkeleton } from './data-table-skeleton';
 import { EditableCell } from './editable-cell';
-import { Button } from '@/components/ui/button';
 
 interface CustomRowProps<TData> {
   row: Row<TData>;
@@ -105,6 +103,7 @@ interface DataTableProps<TData, TColumns extends ExtendedColumnDef<TData>[]> {
   isEditable?: boolean;
   onCellChange?: (changes: CellChange<TData>[]) => Promise<boolean>;
   resetTrigger?: number;
+  toolbarClassName?: string;
 }
 
 export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = ExtendedColumnDef<TData>[]>({
@@ -130,6 +129,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   isEditable = false,
   onCellChange,
   resetTrigger,
+  toolbarClassName,
 }: DataTableProps<TData, TColumns>) {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -293,6 +293,8 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         table={table}
         placeholder={placeholder}
         selectActions={selectActions}
+        pageSizes={pageSizes}
+        className={toolbarClassName}
       />
       <div>
         <Table>
@@ -375,7 +377,6 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} pageSizes={pageSizes} />
     </div>
   );
 }
