@@ -51,7 +51,13 @@ function readFromEnvLocal() {
     return null;
   }
 
-  return databaseUrlLine.split('=')[1];
+  // Handle URLs with query parameters that contain '=' characters
+  const equalsIndex = databaseUrlLine.indexOf('=');
+  if (equalsIndex === -1) {
+    return null;
+  }
+
+  return databaseUrlLine.substring(equalsIndex + 1);
 }
 
 async function findAvailablePort(startPort) {
@@ -112,9 +118,14 @@ function UrlPrompt({ onSubmit }) {
       return;
     }
 
-    const fullUrl = 'postgres://' + url;
+    // Handle URLs that might already include the protocol
+    let fullUrl = url.trim();
+    if (!fullUrl.startsWith('postgres://') && !fullUrl.startsWith('postgresql://')) {
+      fullUrl = 'postgres://' + fullUrl;
+    }
+
     if (!validatePostgresUrl(fullUrl)) {
-      setError('Invalid PostgreSQL URL format. Expected: user:pass@host:port/database');
+      setError('Invalid PostgreSQL URL format. Expected: user:pass@host:port/database[?params]');
       return;
     }
 
@@ -126,7 +137,7 @@ function UrlPrompt({ onSubmit }) {
     Box,
     { flexDirection: 'column' },
     createElement(Box, { marginBottom: 1 }, createElement(Text, { color: 'magenta', bold: true }, '🗄️  Database Viewer')),
-    createElement(Text, { color: 'cyan' }, 'Enter PostgreSQL database URL:'),
+    createElement(Text, { color: 'cyan' }, 'Enter PostgreSQL database URL (with optional query parameters):'),
     createElement(
       Box,
       { marginTop: 1 },
@@ -135,7 +146,7 @@ function UrlPrompt({ onSubmit }) {
         value: url,
         onChange: setUrl,
         onSubmit: handleSubmit,
-        placeholder: 'user:password@host:port/database',
+        placeholder: 'user:password@host:port/database?sslmode=require',
       })
     ),
     error && createElement(Box, { marginTop: 1 }, createElement(Text, { color: 'red' }, '❌ ' + error)),
@@ -268,7 +279,7 @@ program
   .action(async options => {
     if (options.url) {
       if (!validatePostgresUrl(options.url)) {
-        console.error(chalk.red('❌ Invalid PostgreSQL URL format. Expected: postgres://user:pass@host:port/database'));
+        console.error(chalk.red('❌ Invalid PostgreSQL URL format. Expected: postgres://user:pass@host:port/database[?params]'));
         process.exit(1);
       }
 

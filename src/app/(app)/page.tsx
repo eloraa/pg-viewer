@@ -1,3 +1,5 @@
+import { TableViewer } from './table-viewer';
+
 export default function Home() {
-  return process.env.DATABASE_URL;
+  return <TableViewer />;
 }
