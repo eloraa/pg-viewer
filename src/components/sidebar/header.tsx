@@ -41,7 +41,7 @@ export const Header = ({ panel, sidebarWidth, isCollapsed, setNavOpen }: HeaderP
         <Link href="/" className="flex items-center gap-1 min-w-0 truncate">
           <Logo className="size-6 min-w-6" />
           <span className="truncate min-w-0">Postgres</span>
-          <sup className="text-tertiary">DB</sup>
+          <sup className="text-tertiary">beta</sup>
         </Link>
         {panel && (
           <Tooltip>

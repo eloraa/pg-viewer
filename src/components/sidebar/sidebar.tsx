@@ -8,6 +8,7 @@ import { XIcon } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { getPanelElement, getResizeHandleElement, type ImperativePanelHandle } from 'react-resizable-panels';
 import { Header } from './header';
+import { DatabaseBrowser } from './database-browser';
 
 type SidebarProps = {
   defaultLayout: number[];
@@ -170,6 +171,11 @@ export const Sidebar = ({ defaultLayout = [25, 75], defaultCollapsed = false, ch
           </div>
 
           <Separator className="md:hidden bg-accent" />
+
+          {/* Database Browser Content */}
+          <div className="flex-1 overflow-y-auto -mx-2">
+            <DatabaseBrowser />
+          </div>
         </ResizablePanel>
         <ResizableHandle id="sidebar-handle" withHandle className="max-md:hidden z-20" />
 
