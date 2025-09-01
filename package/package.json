@@ -1,0 +1,41 @@
+{
+  "name": "pg-viewer",
+  "version": "0.0.3",
+  "description": "A PostgreSQL database viewer with a web interface you can run locally",
+  "main": "cli.mjs",
+  "bin": "./cli.mjs",
+  "keywords": ["postgresql", "database", "viewer", "cli", "web", "interface"],
+  "author": "Elora",
+  "license": "MIT",
+  "homepage": "https://db.aruu.me",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eloraa/db-viewer"
+  },
+  "files": [
+    "cli.mjs",
+    ".next/**/*",
+    "https/certs/**/*",
+    "next.config.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node cli.mjs"
+  },
+  "dependencies": {
+    "chalk": "^5.6.0",
+    "commander": "^14.0.0",
+    "ink": "^6.2.3",
+    "ink-select-input": "^6.2.0",
+    "ink-text-input": "^6.0.0",
+    "kysely": "^0.28.5",
+    "next": "15.5.2",
+    "pg": "^8.16.3",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "supports-color": "^10.2.0"
+  }
+}

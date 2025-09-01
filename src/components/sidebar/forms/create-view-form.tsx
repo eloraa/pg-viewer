@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useTables, useTableColumns, useSchemas } from '@/data/schema/schema';
+import { useTables, useTableColumns, useSchemas, type DatabaseTable, type DatabaseColumn } from '@/data/schema/schema';
 import { useState } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ChevronDownIcon, XIcon } from 'lucide-react';
@@ -111,12 +111,12 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
       setSelectedTable('');
       onSuccess?.();
     },
-    onError: (error: any) => {
-      if (error && typeof error === 'object' && typeof error.message === 'string') {
+    onError: (error: unknown) => {
+      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('viewName', {
           type: 'server',
-          message: error.message,
+          message: (error as { message: string }).message,
         });
       }
     },
@@ -126,9 +126,9 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
     toast.promise(createViewMutation.mutateAsync(values), {
       loading: 'Creating view...',
       success: 'View created successfully',
-      error: (err: any) => {
-        if (err && typeof err === 'object' && typeof err.message === 'string') {
-          return err.message;
+      error: (err: unknown) => {
+        if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+          return (err as { message: string }).message;
         }
         return 'Failed to create view';
       },
@@ -141,13 +141,14 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
 
     // Generate a basic SELECT query for the selected table
     if (columns && columns.length > 0) {
-      const columnNames = columns.map(col => `"${col.name}"`).join(', ');
+      const typedColumns = columns as DatabaseColumn[];
+      const columnNames = typedColumns.map(col => `"${col.name}"`).join(', ');
       const basicQuery = `SELECT ${columnNames}\nFROM "${form.getValues('schemaName')}"."${tableName}"`;
       form.setValue('query', basicQuery);
       // Select all columns by default
       form.setValue(
         'selectedColumns',
-        columns.map(col => col.name)
+        typedColumns.map(col => col.name)
       );
       // Clear conditions when table changes
       form.setValue('conditions', []);
@@ -175,16 +176,16 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
     }
   };
 
-  const insertColumnIntoQuery = (columnName: string) => {
-    const currentQuery = form.getValues('query');
-    const cursorPosition = (document.querySelector('textarea[name="query"]') as HTMLTextAreaElement)?.selectionStart || currentQuery.length;
+  // const _insertColumnIntoQuery = (columnName: string) => {
+  //   const currentQuery = form.getValues('query');
+  //   const cursorPosition = (document.querySelector('textarea[name="query"]') as HTMLTextAreaElement)?.selectionStart || currentQuery.length;
 
-    const beforeCursor = currentQuery.slice(0, cursorPosition);
-    const afterCursor = currentQuery.slice(cursorPosition);
+  //   const beforeCursor = currentQuery.slice(0, cursorPosition);
+  //   const afterCursor = currentQuery.slice(cursorPosition);
 
-    const newQuery = beforeCursor + `"${columnName}"` + afterCursor;
-    form.setValue('query', newQuery);
-  };
+  //   const newQuery = beforeCursor + `"${columnName}"` + afterCursor;
+  //   form.setValue('query', newQuery);
+  // };
 
   const addCondition = () => {
     const currentConditions = form.getValues('conditions');
@@ -302,7 +303,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
                       <SelectValue placeholder={tablesLoading ? 'Loading...' : 'Select table'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {tables?.map(table => (
+                      {(tables as DatabaseTable[])?.map(table => (
                         <SelectItem key={table.name} value={table.name}>
                           {table.name}
                         </SelectItem>
@@ -332,7 +333,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
                     <DropdownMenuContent className="w-64 max-h-60 overflow-y-auto z-50">
                       <DropdownMenuLabel>Select Columns</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {columns?.map(column => (
+                      {(columns as DatabaseColumn[])?.map(column => (
                         <DropdownMenuCheckboxItem key={column.name} checked={field.value.includes(column.name)} onCheckedChange={() => handleColumnToggle(column.name)}>
                           <div className="flex flex-col items-start">
                             <span className="font-medium">{column.name}</span>
@@ -371,7 +372,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
                   <SelectValue placeholder="Column" />
                 </SelectTrigger>
                 <SelectContent>
-                  {columns?.map(column => (
+                  {(columns as DatabaseColumn[])?.map(column => (
                     <SelectItem key={column.name} value={column.name}>
                       {column.name}
                     </SelectItem>

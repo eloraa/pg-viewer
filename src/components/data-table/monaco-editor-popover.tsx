@@ -4,15 +4,15 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Editor, getEditorLanguage, type EditorLanguage } from '@/components/ui/editor';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { AlignJustifyIcon, Edit3 } from 'lucide-react';
+import { AlignJustifyIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/store/theme';
 
 interface MonacoEditorPopoverProps {
-  value: any;
+  value: unknown;
   dataType?: string;
   nullable?: boolean;
-  onSave: (value: any) => void;
+  onSave: (value: unknown) => void;
   onCancel: () => void;
   trigger?: React.ReactNode;
   children?: React.ReactNode;
@@ -26,6 +26,31 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
   const [editorValue, setEditorValue] = React.useState('');
   const [language, setLanguage] = React.useState<EditorLanguage>('plaintext');
   const { theme } = useTheme();
+
+  const handleSave = React.useCallback(() => {
+    let processedValue: unknown = editorValue;
+
+    // Try to parse JSON if it looks like JSON
+    if (language === 'json' && editorValue.trim()) {
+      try {
+        processedValue = JSON.parse(editorValue);
+      } catch {
+        // If JSON parsing fails, keep as string
+        processedValue = editorValue;
+      }
+    } else if (editorValue === '') {
+      // Handle empty values - convert to null if nullable, otherwise keep as empty string
+      processedValue = nullable ? null : '';
+    }
+
+    onSave(processedValue);
+    setIsOpen(false);
+  }, [editorValue, language, nullable, onSave]);
+
+  const handleCancel = React.useCallback(() => {
+    onCancel();
+    setIsOpen(false);
+  }, [onCancel]);
 
   // Initialize editor value and language when popover opens
   React.useEffect(() => {
@@ -63,32 +88,7 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, editorValue]);
-
-  const handleSave = () => {
-    let processedValue: any = editorValue;
-
-    // Try to parse JSON if it looks like JSON
-    if (language === 'json' && editorValue.trim()) {
-      try {
-        processedValue = JSON.parse(editorValue);
-      } catch {
-        // If JSON parsing fails, keep as string
-        processedValue = editorValue;
-      }
-    } else if (editorValue === '') {
-      // Handle empty values - convert to null if nullable, otherwise keep as empty string
-      processedValue = nullable ? null : '';
-    }
-
-    onSave(processedValue);
-    setIsOpen(false);
-  };
-
-  const handleCancel = () => {
-    onCancel();
-    setIsOpen(false);
-  };
+  }, [isOpen, handleCancel, handleSave]);
 
   const handleSetNull = () => {
     onSave(null);

@@ -1,7 +1,7 @@
 'use server';
 
-import { getDb } from './db';
 import { sql } from 'kysely';
+import { getDb } from './db';
 
 export async function getSchemas() {
   try {
@@ -10,14 +10,15 @@ export async function getSchemas() {
       throw new Error('No database connection available');
     }
 
-    const result = await db
-      .selectFrom('information_schema.schemata')
-      .select('schema_name')
-      .where('schema_name', 'not in', ['information_schema', 'pg_catalog', 'pg_toast'])
-      .orderBy('schema_name', 'asc')
-      .execute();
+    const excludedSchemas = ['information_schema', 'pg_catalog', 'pg_toast'];
+    const result = await sql<{ schema_name: string }>`
+      SELECT schema_name 
+      FROM information_schema.schemata 
+      WHERE schema_name NOT IN (${sql.join(excludedSchemas.map(s => sql.lit(s)))})
+      ORDER BY schema_name
+    `.execute(db);
 
-    return result.map(row => row.schema_name);
+    return result.rows.map(row => row.schema_name);
   } catch (error) {
     console.error('Error fetching schemas:', error);
     throw new Error('Failed to fetch database schemas');
@@ -31,15 +32,15 @@ export async function getTables(schemaName: string) {
       throw new Error('No database connection available');
     }
 
-    const result = await db
-      .selectFrom('information_schema.tables')
-      .select(['table_name', 'table_type'])
-      .where('table_schema', '=', schemaName)
-      .where('table_type', '=', 'BASE TABLE')
-      .orderBy('table_name', 'asc')
-      .execute();
+    const result = await sql<{ table_name: string; table_type: string }>`
+      SELECT table_name, table_type 
+      FROM information_schema.tables 
+      WHERE table_schema = ${sql.lit(schemaName)} 
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name ASC
+    `.execute(db);
 
-    return result.map(row => ({
+    return result.rows.map(row => ({
       name: row.table_name,
       type: row.table_type,
     }));
@@ -57,13 +58,13 @@ export async function getTableColumns(schemaName: string, tableName: string) {
     }
 
     // Get column information
-    const columnsResult = await db
-      .selectFrom('information_schema.columns')
-      .select(['column_name', 'data_type', 'is_nullable'])
-      .where('table_schema', '=', schemaName)
-      .where('table_name', '=', tableName)
-      .orderBy('ordinal_position', 'asc')
-      .execute();
+    const columnsResult = await sql<{ column_name: string; data_type: string; is_nullable: string }>`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_schema = ${sql.lit(schemaName)} 
+        AND table_name = ${sql.lit(tableName)}
+      ORDER BY ordinal_position ASC
+    `.execute(db);
 
     // Get foreign key information using pg_catalog (works better with permissions)
     const foreignKeysQuery = sql`
@@ -94,25 +95,25 @@ export async function getTableColumns(schemaName: string, tableName: string) {
 
     // Create a map of foreign keys by column name
     const foreignKeysMap = new Map();
-    foreignKeysResult.rows.forEach((row: any) => {
+    (foreignKeysResult.rows as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
       console.log('Processing FK row:', row);
-      
+
       // Parse referenced table (might include schema and quotes)
-      let referencedTable = row.referenced_table;
+      let referencedTable = String(row.referenced_table);
       let referencedSchema = 'public'; // default
-      
+
       // Remove quotes if present
       if (referencedTable.startsWith('"') && referencedTable.endsWith('"')) {
         referencedTable = referencedTable.slice(1, -1);
       }
-      
+
       // Check if schema is included (e.g., "schema.table")
       if (referencedTable.includes('.')) {
         const parts = referencedTable.split('.');
         referencedSchema = parts[0];
         referencedTable = parts[1];
       }
-      
+
       foreignKeysMap.set(row.column_name, {
         referencedSchema,
         referencedTable,
@@ -122,7 +123,7 @@ export async function getTableColumns(schemaName: string, tableName: string) {
     });
 
     // Combine column and foreign key information
-    const finalResult = columnsResult.map(row => {
+    const finalResult = columnsResult.rows.map(row => {
       const fk = foreignKeysMap.get(row.column_name);
       const result = {
         name: row.column_name,
@@ -141,7 +142,6 @@ export async function getTableColumns(schemaName: string, tableName: string) {
     throw new Error(`Failed to fetch columns for table: ${tableName}`);
   }
 }
-
 
 export async function getTableData(schemaName: string, tableName: string, limit: number = 100, offset: number = 0) {
   try {
@@ -170,8 +170,6 @@ export async function getTableData(schemaName: string, tableName: string, limit:
     throw new Error(`Failed to fetch data for table: ${tableName}`);
   }
 }
-
-
 
 export async function createSchema(schemaName: string) {
   try {
@@ -295,7 +293,7 @@ export async function executeRawSQL(sqlQuery: string) {
   }
 }
 
-export async function deleteTableRows(schemaName: string, tableName: string, rowData: Array<{ [key: string]: any }>) {
+export async function deleteTableRows(schemaName: string, tableName: string, rowData: Array<{ [key: string]: unknown }>) {
   try {
     const db = await getDb();
     if (!db) {
@@ -308,7 +306,7 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
 
     // Get table columns to identify primary key
     const columns = await getTableColumns(schemaName, tableName);
-    
+
     // Query to find the actual primary key column
     const primaryKeyQuery = sql`
       SELECT kcu.column_name
@@ -322,25 +320,25 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
       ORDER BY kcu.ordinal_position
       LIMIT 1
     `;
-    
+
     const primaryKeyResult = await primaryKeyQuery.execute(db);
     const primaryKeyColumn = (primaryKeyResult.rows[0] as { column_name?: string })?.column_name || columns[0]?.name || 'id';
-    
+
     // Extract primary key values from row data
-    const primaryKeyValues = rowData.map(row => row[primaryKeyColumn]).filter(val => val != null);
-    
+    const primaryKeyValues = rowData.map(row => (row as Record<string, unknown>)[primaryKeyColumn as string]).filter(val => val != null);
+
     if (primaryKeyValues.length === 0) {
       throw new Error(`No valid primary key values found in column '${primaryKeyColumn}'`);
     }
 
     // Build DELETE query using the identified primary key
-    // Using IN instead of ANY for better compatibility
-    const deleteQuery = sql`
-      DELETE FROM ${sql.id(schemaName, tableName)}
-      WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
-    `;
+    // // Using IN instead of ANY for better compatibility
+    // const deleteQuery = sql`
+    //   DELETE FROM ${sql.id(schemaName, tableName)}
+    //   WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
+    // `;
 
-    const result = await deleteQuery.execute(db);
+    // const _result = await deleteQuery.execute(db);
 
     return {
       success: true,
@@ -357,7 +355,7 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
   }
 }
 
-export async function insertTableRow(schemaName: string, tableName: string, rowData: Record<string, any>) {
+export async function insertTableRow(schemaName: string, tableName: string, rowData: Record<string, unknown>) {
   try {
     const db = await getDb();
     if (!db) {
@@ -366,29 +364,26 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
 
     // Get table columns to build the insert query
     const columns = await getTableColumns(schemaName, tableName);
-    
+
     // Check if id column is auto-incrementing by looking for default values
     const idColumn = columns.find(col => col.name === 'id');
-    const isIdAutoIncrement = idColumn && (
+    const isIdAutoIncrement =
+      idColumn &&
       // Check if there's a default value that looks like a sequence
-      await db
-        .selectFrom('information_schema.columns')
-        .select('column_default')
-        .where('table_schema', '=', schemaName)
-        .where('table_name', '=', tableName)
-        .where('column_name', '=', 'id')
-        .execute()
+      (await sql<{ column_default: string | null }>`
+        SELECT column_default 
+        FROM information_schema.columns 
+        WHERE table_schema = ${sql.lit(schemaName)} 
+          AND table_name = ${sql.lit(tableName)} 
+          AND column_name = 'id'
+      `
+        .execute(db)
         .then(result => {
-          const defaultVal = result[0]?.column_default;
-          return defaultVal && (
-            defaultVal.includes('nextval') || 
-            defaultVal.includes('sequence') ||
-            defaultVal.includes('gen_random_uuid')
-          );
+          const defaultVal = result.rows[0]?.column_default;
+          return defaultVal && (defaultVal.includes('nextval') || defaultVal.includes('sequence') || defaultVal.includes('gen_random_uuid'));
         })
-        .catch(() => false)
-    );
-    
+        .catch(() => false));
+
     // Filter out columns that shouldn't be inserted
     const insertableColumns = columns.filter(col => {
       // Don't filter out id if it's not auto-incrementing or if a value is provided
@@ -401,13 +396,13 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
 
     // Only include columns that have non-empty values or are nullable with explicit null values
     const columnsWithValues = insertableColumns.filter(col => {
-      const value = rowData[col.name];
-      
+      const value = rowData[col.name as keyof typeof rowData];
+
       // Special handling for id column - include if value is provided
       if (col.name === 'id' && value !== undefined && value !== '') {
         return true;
       }
-      
+
       // Include if value is not empty string
       if (value !== '' && value !== null && value !== undefined) {
         return true;
@@ -422,9 +417,9 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
     // Build column names and values arrays
     const columnNames = columnsWithValues.map(col => col.name);
     const values = columnNames.map(colName => {
-      const value = rowData[colName];
+      const value = rowData[colName as keyof typeof rowData];
       const column = columnsWithValues.find(col => col.name === colName);
-      
+
       // Handle null values for nullable columns
       if (value === null || value === undefined) {
         return null;
@@ -441,13 +436,9 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
     }
 
     // Build the SQL query for error display with pretty formatting
-    const valuesList = values.map((val: any) => 
-      val === null ? 'NULL' : 
-      typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : 
-      String(val)
-    );
-    const columnList = columnNames.map((name: string) => `"${name}"`);
-    
+    const valuesList = values.map((val: unknown) => (val === null ? 'NULL' : typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : String(val)));
+    const columnList = (columnNames as string[]).map(name => `"${name}"`);
+
     const attemptedSql = `INSERT INTO "${schemaName}"."${tableName}" (
   ${columnList.join(',\n  ')}
 ) VALUES (
@@ -456,7 +447,7 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
 
     // Build INSERT query with RETURNING clause to get the created row
     const insertQuery = sql`
-      INSERT INTO ${sql.id(schemaName, tableName)} (${sql.join(columnNames.map(name => sql.id(name)))})
+      INSERT INTO ${sql.id(schemaName, tableName)} (${sql.join((columnNames as string[]).map(name => sql.id(name)))})
       VALUES (${sql.join(values.map(val => sql.lit(val)))})
       RETURNING *
     `;
@@ -466,13 +457,13 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
       result = await insertQuery.execute(db);
     } catch (dbError) {
       const error = dbError instanceof Error ? dbError : new Error('Database error');
-      (error as any).sqlQuery = attemptedSql;
+      (error as Error & { sqlQuery?: string }).sqlQuery = attemptedSql;
       throw error;
     }
 
     if (result.rows.length === 0) {
       const error = new Error('Failed to create new row');
-      (error as any).sqlQuery = attemptedSql;
+      (error as Error & { sqlQuery?: string }).sqlQuery = attemptedSql;
       throw error;
     }
 
@@ -483,13 +474,13 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
     };
   } catch (error) {
     console.error('Error inserting table row:', error);
-    
+
     // If this is a database error, try to extract the SQL query
     let sqlQuery = 'Unable to reconstruct SQL query';
-    if (error instanceof Error && (error as any).sqlQuery) {
-      sqlQuery = (error as any).sqlQuery;
+    if (error instanceof Error && (error as Error & { sqlQuery?: string }).sqlQuery) {
+      sqlQuery = (error as Error & { sqlQuery?: string }).sqlQuery || 'Unable to reconstruct SQL query';
     }
-    
+
     return {
       success: false,
       data: null,
@@ -500,13 +491,13 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
 }
 
 export async function updateTableData(
-  schemaName: string, 
-  tableName: string, 
+  schemaName: string,
+  tableName: string,
   changes: Array<{
-    row: any;
+    row: Record<string, unknown>;
     column: string;
-    oldValue: any;
-    newValue: any;
+    oldValue: unknown;
+    newValue: unknown;
     rowIndex: number;
   }>
 ) {
@@ -518,9 +509,9 @@ export async function updateTableData(
 
     // We need to identify each row uniquely. For now, we'll assume there's an 'id' column
     // In a production app, you'd want to identify the primary key(s) dynamically
-    const updatePromises = changes.map(async (change) => {
+    const updatePromises = changes.map(async change => {
       const { row, column, newValue } = change;
-      
+
       // Find a unique identifier for the row (assuming 'id' column exists)
       const rowId = row.id;
       if (!rowId) {

@@ -2,17 +2,17 @@
 
 import * as React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useSchemas, useTables } from '@/data/schema/schema';
+import { useSchemas, useTables, type DatabaseTable } from '@/data/schema/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DatabaseIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, ScrollIcon, TableIcon } from 'lucide-react';
+import { DatabaseIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, TableIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Spinner } from '../ui/spinner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { DatabaseActionDialogs, type DatabaseAction } from './database-action-dialogs';
 import { SQLConsoleDialog } from './sql-console-dialog';
-import Link from 'next/link';
+
 
 export const DatabaseBrowser = () => {
   const router = useRouter();
@@ -60,7 +60,7 @@ export const DatabaseBrowser = () => {
   // Auto-select first table when tables are loaded
   React.useEffect(() => {
     if (tables && tables.length > 0 && selectedSchema && !selectedTable) {
-      const firstTable = tables[0].name;
+      const firstTable = tables[0].name as string;
       setSelectedTable(firstTable);
       updateSearchParams(selectedSchema, firstTable);
     }
@@ -178,8 +178,8 @@ export const DatabaseBrowser = () => {
             <div className="text-sm text-destructive">Error loading tables: {tablesError.message}</div>
           ) : tables && tables.length > 0 ? (
             <div className="space-y-1">
-              {tables.map(table => (
-                <Button key={table.name} className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
+              {(tables as DatabaseTable[]).map((table) => (
+                <Button key={table.name} size='sm' className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
                   <TableIcon />
                   <span className="truncate min-w-0">{table.name}</span>
                 </Button>
@@ -193,9 +193,10 @@ export const DatabaseBrowser = () => {
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       <DatabaseActionDialogs action={dialogAction} isOpen={isDialogOpen} onClose={handleDialogClose} selectedSchema={selectedSchema} />
-    </div>
+    </div >
   );
 };

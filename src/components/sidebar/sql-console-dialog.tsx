@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { FileCode2Icon, Play, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileCode2Icon, Play, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { executeRawSQL } from '@/lib/server/actions';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
 import { Copy } from '../ui/copy';
@@ -14,7 +14,7 @@ import { ExternalLink } from 'lucide-react';
 
 interface QueryResult {
   success: boolean;
-  data: any[];
+  data: Record<string, unknown>[];
   rowCount: number;
   executionTime: number;
   message?: string;
@@ -33,7 +33,7 @@ export function SQLConsoleDialog() {
     setIsExecuting(true);
     try {
       const result = await executeRawSQL(query);
-      setResult(result);
+      setResult(result as QueryResult);
     } catch (error) {
       setResult({
         success: false,

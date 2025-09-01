@@ -2,8 +2,8 @@ import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import { cookies } from 'next/headers';
 
-interface Database {
-  [key: string]: any;
+export interface Database {
+  [key: string]: unknown;
 }
 
 async function getDatabaseUrl(): Promise<string | undefined> {

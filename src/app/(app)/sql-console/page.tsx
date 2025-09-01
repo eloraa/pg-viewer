@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Database, Search, CopyIcon, Play, Download, FileText, TableIcon, Code2 } from 'lucide-react';
+import { Database, Search, Play, Download, FileText, TableIcon, Code2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Copy } from '@/components/ui/copy';
 import { EditorReact } from '@/components/ui/editor-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { Badge } from '@/components/ui/badge';
+
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { executeRawSQL } from '@/lib/server/actions';
 import { searchItems } from '@/lib/search';
@@ -20,7 +20,7 @@ import * as monaco from 'monaco-editor';
 
 interface QueryResult {
   success: boolean;
-  data: any[];
+  data: Record<string, unknown>[];
   rowCount: number;
   executionTime: number;
   message?: string;
@@ -41,8 +41,15 @@ interface SchemaColumn {
 interface SchemaTable {
   table_name: string;
   columns: SchemaColumn[];
-  constraints?: any[];
-  indexes?: any[];
+  constraints?: Array<{
+    constraint_name: string;
+    constraint_type: string;
+    definition: string;
+  }>;
+  indexes?: Array<{
+    indexname: string;
+    indexdef: string;
+  }>;
 }
 
 export default function SQLConsolePage() {
@@ -58,13 +65,13 @@ export default function SQLConsolePage() {
   const editorRef = React.useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const completionProviderRef = React.useRef<monaco.IDisposable | null>(null);
 
-  const executeQuery = async () => {
+  const executeQuery = React.useCallback(async () => {
     if (!query.trim()) return;
 
     setIsExecuting(true);
     try {
       const result = await executeRawSQL(query);
-      setResult(result);
+      setResult(result as QueryResult);
     } catch (error) {
       setResult({
         success: false,
@@ -76,9 +83,155 @@ export default function SQLConsolePage() {
     } finally {
       setIsExecuting(false);
     }
-  };
+  }, [query]);
 
-  const loadSchema = async () => {
+  // Helper function to shorten data types
+  const shortenDataType = React.useCallback((dataType: string): string => {
+    const typeMap: { [key: string]: string } = {
+      'character varying': 'VARCHAR',
+      'timestamp without time zone': 'TIMESTAMP',
+      'timestamp with time zone': 'TIMESTAMPTZ',
+      integer: 'INT',
+      bigint: 'BIGINT',
+      smallint: 'SMALLINT',
+      boolean: 'BOOL',
+      text: 'TEXT',
+      uuid: 'UUID',
+      jsonb: 'JSONB',
+      json: 'JSON',
+    };
+    return typeMap[dataType.toLowerCase()] || dataType.toUpperCase();
+  }, []);
+
+  // Register SQL completion provider
+  const registerSQLCompletions = React.useCallback(
+    () => {
+      console.log('Registering SQL completions with schema:', schema.length, 'tables');
+
+      const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
+        provideCompletionItems: (model, position) => {
+          console.log('Providing completions, schema has', schema.length, 'tables');
+
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
+
+          const suggestions: monaco.languages.CompletionItem[] = [];
+
+          // Add table suggestions
+          schema.forEach(table => {
+            suggestions.push({
+              label: table.table_name,
+              kind: monaco.languages.CompletionItemKind.Class,
+              insertText: table.table_name,
+              detail: 'Table',
+              documentation: `Table: ${table.table_name}`,
+              range: range,
+            });
+
+            // Add column suggestions with table prefix
+            table.columns.forEach(column => {
+              suggestions.push({
+                label: `${table.table_name}.${column.column_name}`,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: `${table.table_name}.${column.column_name}`,
+                detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
+                documentation: `Column: ${column.column_name} (${column.data_type})`,
+                range: range,
+              });
+
+              // Add column suggestions without table prefix for when user is already in context
+              suggestions.push({
+                label: column.column_name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: column.column_name,
+                detail: `${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
+                documentation: `Column: ${column.column_name} from ${table.table_name} (${column.data_type})`,
+                range: range,
+              });
+            });
+          });
+
+          // Add SQL keywords
+          const sqlKeywords = [
+            'SELECT',
+            'FROM',
+            'WHERE',
+            'JOIN',
+            'INNER JOIN',
+            'LEFT JOIN',
+            'RIGHT JOIN',
+            'FULL JOIN',
+            'GROUP BY',
+            'ORDER BY',
+            'HAVING',
+            'LIMIT',
+            'OFFSET',
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'CREATE',
+            'DROP',
+            'ALTER',
+            'INDEX',
+            'PRIMARY KEY',
+            'FOREIGN KEY',
+            'REFERENCES',
+            'NOT NULL',
+            'UNIQUE',
+            'DEFAULT',
+            'CHECK',
+            'AND',
+            'OR',
+            'NOT',
+            'IN',
+            'EXISTS',
+            'BETWEEN',
+            'LIKE',
+            'ILIKE',
+            'IS NULL',
+            'IS NOT NULL',
+            'DISTINCT',
+            'COUNT',
+            'SUM',
+            'AVG',
+            'MIN',
+            'MAX',
+            'CASE',
+            'WHEN',
+            'THEN',
+            'ELSE',
+            'END',
+            'AS',
+            'ON',
+            'USING',
+          ];
+
+          sqlKeywords.forEach(keyword => {
+            suggestions.push({
+              label: keyword,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: keyword,
+              detail: 'SQL Keyword',
+              range: range,
+            });
+          });
+
+          console.log('Returning', suggestions.length, 'suggestions');
+          return { suggestions };
+        },
+      });
+
+      return completionProvider;
+    },
+    [schema, shortenDataType]
+  );
+
+  const loadSchema = React.useCallback(async () => {
     setIsLoadingSchema(true);
     try {
       // First get columns with primary key info
@@ -137,7 +290,7 @@ export default function SQLConsolePage() {
         // Group columns by table
         const tableMap = new Map();
 
-        columnsResult.data.forEach((row: any) => {
+        (columnsResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
           if (!tableMap.has(row.table_name)) {
             tableMap.set(row.table_name, {
               table_name: row.table_name,
@@ -159,7 +312,7 @@ export default function SQLConsolePage() {
 
         // Add constraints
         if (constraintsResult.success) {
-          constraintsResult.data.forEach((row: any) => {
+          (constraintsResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
             const table = tableMap.get(row.table_name);
             if (table) {
               table.constraints.push({
@@ -173,7 +326,7 @@ export default function SQLConsolePage() {
 
         // Add indexes
         if (indexesResult.success) {
-          indexesResult.data.forEach((row: any) => {
+          (indexesResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
             const table = tableMap.get(row.table_name);
             if (table) {
               table.indexes.push({
@@ -185,14 +338,14 @@ export default function SQLConsolePage() {
         }
 
         setSchema(Array.from(tableMap.values()));
-        
+
         // Update completions when schema changes
         setTimeout(() => {
           if (editorRef.current) {
             if (completionProviderRef.current) {
               completionProviderRef.current.dispose();
             }
-            completionProviderRef.current = registerSQLCompletions(editorRef.current);
+            completionProviderRef.current = registerSQLCompletions();
           }
         }, 50);
       }
@@ -201,7 +354,7 @@ export default function SQLConsolePage() {
     } finally {
       setIsLoadingSchema(false);
     }
-  };
+  }, [registerSQLCompletions]);
 
   const handleKeyDown = React.useCallback(
     (e: KeyboardEvent) => {
@@ -217,7 +370,7 @@ export default function SQLConsolePage() {
         }
       }
     },
-    [query, schema.length]
+    [schema.length, executeQuery, loadSchema]
   );
 
   const copyColumnName = (columnName: string, tableName: string) => {
@@ -226,41 +379,23 @@ export default function SQLConsolePage() {
     toast.success(`Copied ${fullColumnName}`);
   };
 
-  const insertColumnIntoEditor = (columnName: string, tableName: string) => {
-    if (editorRef.current) {
-      const editor = editorRef.current;
-      const selection = editor.getSelection();
-      const fullColumnName = `${tableName}.${columnName}`;
+  // const _insertColumnIntoEditor = (columnName: string, tableName: string) => {
+  //   if (editorRef.current) {
+  //     const editor = editorRef.current;
+  //     const selection = editor.getSelection();
+  //     const fullColumnName = `${tableName}.${columnName}`;
 
-      if (selection) {
-        editor.executeEdits('insert-column', [
-          {
-            range: selection,
-            text: fullColumnName,
-          },
-        ]);
-      }
-    }
-    setSchemaOpen(false);
-  };
-
-  // Helper function to shorten data types
-  const shortenDataType = (dataType: string): string => {
-    const typeMap: { [key: string]: string } = {
-      'character varying': 'VARCHAR',
-      'timestamp without time zone': 'TIMESTAMP',
-      'timestamp with time zone': 'TIMESTAMPTZ',
-      integer: 'INT',
-      bigint: 'BIGINT',
-      smallint: 'SMALLINT',
-      boolean: 'BOOL',
-      text: 'TEXT',
-      uuid: 'UUID',
-      jsonb: 'JSONB',
-      json: 'JSON',
-    };
-    return typeMap[dataType.toLowerCase()] || dataType.toUpperCase();
-  };
+  //     if (selection) {
+  //       editor.executeEdits('insert-column', [
+  //         {
+  //           range: selection,
+  //           text: fullColumnName,
+  //         },
+  //       ]);
+  //     }
+  //   }
+  //   setSchemaOpen(false);
+  // };
 
   React.useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -277,86 +412,6 @@ export default function SQLConsolePage() {
       }
     };
   }, []);
-
-  // Register SQL completion provider
-  const registerSQLCompletions = React.useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
-    console.log('Registering SQL completions with schema:', schema.length, 'tables');
-    
-    const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
-      provideCompletionItems: (model, position) => {
-        console.log('Providing completions, schema has', schema.length, 'tables');
-        
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn
-        };
-
-        const suggestions: monaco.languages.CompletionItem[] = [];
-
-        // Add table suggestions
-        schema.forEach(table => {
-          suggestions.push({
-            label: table.table_name,
-            kind: monaco.languages.CompletionItemKind.Class,
-            insertText: table.table_name,
-            detail: 'Table',
-            documentation: `Table: ${table.table_name}`,
-            range: range
-          });
-
-          // Add column suggestions with table prefix
-          table.columns.forEach(column => {
-            suggestions.push({
-              label: `${table.table_name}.${column.column_name}`,
-              kind: monaco.languages.CompletionItemKind.Field,
-              insertText: `${table.table_name}.${column.column_name}`,
-              detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
-              documentation: `Column: ${column.column_name} (${column.data_type})`,
-              range: range
-            });
-
-            // Add column suggestions without table prefix for when user is already in context
-            suggestions.push({
-              label: column.column_name,
-              kind: monaco.languages.CompletionItemKind.Field,
-              insertText: column.column_name,
-              detail: `${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
-              documentation: `Column: ${column.column_name} from ${table.table_name} (${column.data_type})`,
-              range: range
-            });
-          });
-        });
-
-        // Add SQL keywords
-        const sqlKeywords = [
-          'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
-          'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'INSERT', 'UPDATE', 'DELETE',
-          'CREATE', 'DROP', 'ALTER', 'INDEX', 'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES',
-          'NOT NULL', 'UNIQUE', 'DEFAULT', 'CHECK', 'AND', 'OR', 'NOT', 'IN', 'EXISTS',
-          'BETWEEN', 'LIKE', 'ILIKE', 'IS NULL', 'IS NOT NULL', 'DISTINCT', 'COUNT', 'SUM',
-          'AVG', 'MIN', 'MAX', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'AS', 'ON', 'USING'
-        ];
-
-        sqlKeywords.forEach(keyword => {
-          suggestions.push({
-            label: keyword,
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: keyword,
-            detail: 'SQL Keyword',
-            range: range
-          });
-        });
-
-        console.log('Returning', suggestions.length, 'suggestions');
-        return { suggestions };
-      }
-    });
-
-    return completionProvider;
-  }, [schema, shortenDataType]);
 
   const generateMarkdown = () => {
     if (!result?.data?.length) return '';
@@ -548,9 +603,9 @@ export default function SQLConsolePage() {
                           <div className="p-3 border-b bg-muted/10">
                             <div className="text-xs text-muted-foreground uppercase tracking-wide">CONSTRAINTS</div>
                           </div>
-                          {selectedTableData.constraints.map((constraint: any, index: number) => {
+                          {selectedTableData.constraints.map((constraint: { constraint_name: string; constraint_type: string; definition: string }, index: number) => {
                             // Extract useful information from constraint definition
-                            const getUsefulConstraintInfo = (constraint: any) => {
+                            const getUsefulConstraintInfo = (constraint: { constraint_name: string; constraint_type: string; definition: string }) => {
                               const def = constraint.definition || '';
                               const type = constraint.constraint_type;
 
@@ -606,7 +661,7 @@ export default function SQLConsolePage() {
                           <div className="p-3 border-b bg-muted/10">
                             <div className="text-xs text-muted-foreground uppercase tracking-wide">INDEXES</div>
                           </div>
-                          {selectedTableData.indexes.map((index: any, idx: number) => (
+                          {selectedTableData.indexes.map((index: { indexname: string; indexdef: string }, idx: number) => (
                             <div
                               key={idx}
                               className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
@@ -681,7 +736,7 @@ export default function SQLConsolePage() {
                     if (completionProviderRef.current) {
                       completionProviderRef.current.dispose();
                     }
-                    completionProviderRef.current = registerSQLCompletions(editor);
+                    completionProviderRef.current = registerSQLCompletions();
                   }, 100);
                 });
               }}

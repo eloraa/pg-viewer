@@ -24,23 +24,26 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
     const [isEditorReady, setIsEditorReady] = React.useState(false);
 
     // Default editor options
-    const defaultOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
-      value,
-      language,
-      theme: 'vs-dark',
-      automaticLayout: true,
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      wordWrap: 'on',
-      lineNumbers: 'on',
-      folding: true,
-      selectOnLineNumbers: true,
-      roundedSelection: false,
-      readOnly: false,
-      cursorStyle: 'line',
-      fontSize: 14,
-      ...options,
-    };
+    const defaultOptions: monaco.editor.IStandaloneEditorConstructionOptions = React.useMemo(
+      () => ({
+        value,
+        language,
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        wordWrap: 'on',
+        lineNumbers: 'on',
+        folding: true,
+        selectOnLineNumbers: true,
+        roundedSelection: false,
+        readOnly: false,
+        cursorStyle: 'line',
+        fontSize: 14,
+        ...options,
+      }),
+      [language, options, value]
+    );
 
     // Initialize Monaco editor
     React.useEffect(() => {
@@ -84,7 +87,7 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
           }
         }
       };
-    }, []);
+    }, [defaultOptions, onChange, onMount, ref]);
 
     // Update editor value when prop changes (controlled input)
     React.useEffect(() => {

@@ -3,19 +3,21 @@
 import * as React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTableColumns, useTableData } from '@/data/schema/schema';
-import { DataTable, ExtendedColumnDef } from '@/components/data-table/data-table';
+import { DataTable, type ExtendedColumnDef } from '@/components/data-table/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Column } from '@tanstack/react-table';
+import { Table } from '@tanstack/react-table';
 import { XIcon } from 'lucide-react';
 import { updateTableData, insertTableRow } from '@/lib/server/actions';
 import { Actions } from './actions';
 import { CreateNewFilter } from './create-new-filter';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Editor } from '@/components/ui/editor';
 import { useTheme } from '@/store/theme';
+import { useSidebarStore } from '@/store/sidebar';
+import { cn } from '@/lib/utils';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
@@ -23,6 +25,7 @@ export function TableViewer() {
   const schema = searchParams.get('schema');
   const table = searchParams.get('table');
   const { theme } = useTheme();
+  const { isExpanded } = useSidebarStore();
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
   const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData } = useTableData(schema, table);
@@ -30,10 +33,10 @@ export function TableViewer() {
   // State for tracking cell changes
   const [pendingChanges, setPendingChanges] = React.useState<
     Array<{
-      row: any;
+      row: Record<string, unknown>;
       column: string;
-      oldValue: any;
-      newValue: any;
+      oldValue: unknown;
+      newValue: unknown;
       rowIndex: number;
     }>
   >([]);
@@ -41,12 +44,12 @@ export function TableViewer() {
   const [resetTrigger, setResetTrigger] = React.useState(0);
 
   // State for selected rows and table instance
-  const [selectedRows, setSelectedRows] = React.useState<any[]>([]);
-  const [tableInstance, setTableInstance] = React.useState<any>(null);
+  const [selectedRows, setSelectedRows] = React.useState<Record<string, unknown>[]>([]);
+  const [tableInstance, setTableInstance] = React.useState<Table<Record<string, unknown>> | null>(null);
 
   // State for new row creation
   const [isCreatingNew, setIsCreatingNew] = React.useState(false);
-  const [newRowData, setNewRowData] = React.useState<any>(null);
+  const [newRowData, setNewRowData] = React.useState<Record<string, unknown> | null>(null);
 
   // State for error dialog
   const [errorDialog, setErrorDialog] = React.useState<{
@@ -74,10 +77,10 @@ export function TableViewer() {
   const handleCellChange = React.useCallback(
     async (
       changes: Array<{
-        row: any;
+        row: Record<string, unknown>;
         column: string;
-        oldValue: any;
-        newValue: any;
+        oldValue: unknown;
+        newValue: unknown;
         rowIndex: number;
       }>
     ) => {
@@ -97,7 +100,7 @@ export function TableViewer() {
       setIsProcessingChanges(true);
       try {
         // Build row data from pending changes
-        const rowData: Record<string, any> = { ...newRowData };
+        const rowData: Record<string, unknown> = { ...newRowData };
         pendingChanges.forEach(change => {
           rowData[change.column] = change.newValue;
         });
@@ -114,7 +117,7 @@ export function TableViewer() {
           setResetTrigger(prev => prev + 1);
           refetchTableData();
         } else {
-          showError('Error Creating Row', result.error || 'Failed to create new row', (result as any).sqlQuery);
+          showError('Error Creating Row', result.error || 'Failed to create new row', (result as { sqlQuery?: string }).sqlQuery);
         }
       } catch (error) {
         showError('Error Creating Row', error instanceof Error ? error.message : 'Unknown error occurred');
@@ -140,7 +143,7 @@ export function TableViewer() {
         setIsProcessingChanges(false);
       }
     }
-  }, [schema, table, pendingChanges, refetchTableData, isCreatingNew, newRowData]);
+  }, [schema, table, pendingChanges, refetchTableData, isCreatingNew, newRowData, showError]);
 
   // Handler for discarding changes
   const handleDiscardChanges = React.useCallback(() => {
@@ -155,11 +158,11 @@ export function TableViewer() {
     if (!columns) return;
 
     // Create empty new row with default values
-    const emptyRow: any = { __isNew: true };
+    const emptyRow: Record<string, unknown> = { __isNew: true };
     columns.forEach(col => {
-      if (col.name !== 'id') {
+      if (col.name && col.name !== 'id') {
         // Don't include auto-increment fields
-        emptyRow[col.name] = '';
+        emptyRow[col.name as string] = '';
       }
     });
 
@@ -182,7 +185,7 @@ export function TableViewer() {
 
   // Prepare table data including new row if creating
   const tableDisplayData = React.useMemo(() => {
-    const baseData = tableData?.data || [];
+    const baseData = (tableData?.data as Record<string, unknown>[]) || [];
     if (isCreatingNew && newRowData) {
       return [newRowData, ...baseData];
     }
@@ -190,12 +193,12 @@ export function TableViewer() {
   }, [tableData?.data, isCreatingNew, newRowData]);
 
   // Generate columns for the data table
-  const dataColumns = React.useMemo<ExtendedColumnDef<unknown>[]>(() => {
+  const dataColumns = React.useMemo(() => {
     if (!columns) return [];
 
     console.log('Columns data in table viewer:', columns);
 
-    const selectColumn: ExtendedColumnDef<unknown> = {
+    const selectColumn: ExtendedColumnDef<Record<string, unknown>> = {
       id: 'select',
       header: ({ table }) => (
         <div className="flex items-center justify-center">
@@ -207,7 +210,7 @@ export function TableViewer() {
         </div>
       ),
       cell: ({ row }) => {
-        const isNewRow = (row.original as any)?.__isNew;
+        const isNewRow = (row.original as Record<string, unknown>)?.__isNew;
 
         if (isNewRow) {
           return (
@@ -230,17 +233,19 @@ export function TableViewer() {
     };
 
     // Create columns with FK reference columns placed after their related data columns
-    const dataColumns: ExtendedColumnDef<unknown>[] = [];
+    const dataColumns: ExtendedColumnDef<Record<string, unknown>>[] = [];
 
     columns
-      .filter(column => column.name && column.name.trim() !== '')
+      .filter(column => typeof column.name === 'string' && column.name.trim() !== '')
       .forEach(column => {
         // Add the regular data column
         dataColumns.push({
-          accessorKey: column.name,
-          header: ({ column: tableColumn }: { column: Column<unknown, unknown> }) => <DataTableColumnHeader column={tableColumn} title={column.name} dataType={column.type} />,
-          cell: ({ row }: { row: any }) => {
-            const value = row.getValue(column.name);
+          accessorKey: column.name as string,
+          header: ({ column: tableColumn }) => (
+            <DataTableColumnHeader column={tableColumn} title={column.name as string} dataType={column.type as string} />
+          ),
+          cell: ({ row }: { row: { getValue: (key: string) => unknown } }) => {
+            const value = row.getValue(column.name as string);
 
             // Handle different data types for display (no foreign key logic here)
             if (value === null) {
@@ -264,7 +269,7 @@ export function TableViewer() {
         });
 
         if (column.foreignKey) {
-          dataColumns.push({
+          const fkColumn: ExtendedColumnDef<Record<string, unknown>> = {
             id: `fk_${column.name}_${column.foreignKey.referencedTable}`,
             header: () => <span>{column.foreignKey!.referencedTable}</span>,
             cell: () => (
@@ -279,14 +284,16 @@ export function TableViewer() {
                 </Button>
               </div>
             ),
+            accessorKey: `fk_${column.name}`,
             enableSorting: false,
             enableHiding: true,
-          });
+          };
+          dataColumns.push(fkColumn);
         }
       });
 
     return [selectColumn, ...dataColumns];
-  }, [columns, handleNavigateToForeignKey]);
+  }, [columns, handleNavigateToForeignKey, handleDiscardChanges]);
 
   if (!schema || !table) {
     return (
@@ -327,21 +334,13 @@ export function TableViewer() {
   }
 
   return (
-    <div>
-      <div className="flex-none p-6 pb-4 border-b">
-        <h1 className="text-2xl font-semibold mb-1">
-          {schema}.{table}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {tableData?.total || 0} rows • {columns?.length || 0} columns
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-hidden pt-4">
+    <>
+      <div className="flex-1 overflow-hidden pt-1">
         <DataTable
           columns={dataColumns}
           data={tableDisplayData}
           placeholder={`Search in ${table}...`}
+          toolbarClassName={cn(isExpanded ? 'pr-14' : 'pl-4 pr-4.5')}
           search={dataColumns
             .map(col => ({
               label: col.accessorKey || 'Unknown',
@@ -441,6 +440,6 @@ export function TableViewer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

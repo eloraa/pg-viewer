@@ -81,7 +81,7 @@ export const Dropdown = () => {
         </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="cursor-pointer">
-          <a href="https://github.com/eloraa" target="_blank">
+          <a href="https://github.com/eloraa" target="_blank" rel="noreferrer">
             <GithubIcon /> Github
             <ArrowUpRightIcon className="size-4 ml-auto" />
           </a>

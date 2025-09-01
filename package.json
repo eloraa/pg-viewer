@@ -1,5 +1,5 @@
 {
-  "name": "db-viewer",
+  "name": "pg-viewer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,13 @@
     "cli": "node cli.mjs",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "package:clean": "if exist package\\.next rmdir /s /q package\\.next && if exist package\\https rmdir /s /q package\\https && if exist package\\cli.mjs del package\\cli.mjs && if exist package\\next.config.ts del package\\next.config.ts",
+    "package:prepare": "if not exist package mkdir package",
+    "package:copy": "copy cli.mjs package\\ && xcopy .next package\\.next\\ /e /i && xcopy https package\\https\\ /e /i && copy next.config.ts package\\",
+    "package:build": "npm run build && npm run package:prepare && npm run package:copy",
+    "package:publish": "npm run package:build && cd package && npm publish"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -53,6 +59,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@eslint/js": "^9.34.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.15.5",
@@ -60,8 +67,11 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.3.0",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.7",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.41.0"
   }
 }

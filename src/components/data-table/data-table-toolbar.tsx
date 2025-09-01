@@ -10,6 +10,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import React from 'react';
 import { useMediaQuery } from '@/lib/hooks/use-media-query';
 import { DataInput } from './data-table-input';
+import { DataTablePagination } from './data-table-pagination';
+import { cn } from '@/lib/utils';
 
 interface FilterOption {
   label: string;
@@ -49,9 +51,11 @@ interface DataTableToolbarProps<TData> {
   dateFilter?: boolean;
   customFilter?: CustomFilterItem[];
   selectActions?: React.ReactNode | React.ReactNode[];
+  pageSizes?: number[];
+  className?: string;
 }
 
-export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defaultStatus, placeholder, id, dateFilter, customFilter, selectActions }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defaultStatus, placeholder, id, dateFilter, customFilter, selectActions, pageSizes, className }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
   const selectedRows = table.getSelectedRowModel().rows.length;
 
@@ -80,7 +84,7 @@ export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defa
   }, [idOptions, selectedId]);
 
   return (
-    <div className="space-y-2">
+    <div className={cn('space-y-2 px-2', className)}>
       <div className="flex items-end justify-between gap-2 flex-wrap py-1">
         <div className="flex flex-wrap flex-1 items-center gap-2 max-md:space-y-2">
           <div className="flex items-center">
@@ -90,12 +94,12 @@ export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defa
                 placeholder={placeholder}
                 value={(table.getColumn(selectedId || '')?.getFilterValue() as string) ?? ''}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) => table.getColumn(selectedId || '')?.setFilterValue(event.target.value)}
-                className={idOptions.length > 1 ? 'rounded-r-none' : ''}
+                className={idOptions.length > 1 ? 'rounded-none h-8 max-w-40 shadow-none' : ''}
               />
             )}
             {idOptions.length > 1 && (
               <Select value={selectedId} onValueChange={setSelectedId}>
-                <SelectTrigger className="w-[120px] truncate bg-background dark:bg-background border-border dark:border-border rounded-l-none !h-9 min-h-0">
+                <SelectTrigger className="w-[120px] truncate bg-background dark:bg-background border-border dark:border-border rounded-none !h-8 min-h-0 max-w-20 shadow-none">
                   <SelectValue className="truncate">
                     <span className="truncate text-muted-foreground">{idOptions.find(opt => opt.value === selectedId)?.label}</span>
                   </SelectValue>
@@ -157,11 +161,9 @@ export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defa
           )}
         </div>
         <div className="flex items-center gap-2 flex-col md:flex-row">
-          {selectedRows > 0 && isDesktop && (
-            <>
-              {Array.isArray(selectActions) ? selectActions.map((action, index) => <div key={index}>{action}</div>) : selectActions}
-            </>
-          )}
+          {selectedRows > 0 && isDesktop && <>{Array.isArray(selectActions) ? selectActions.map((action, index) => <div key={index}>{action}</div>) : selectActions}</>}
+
+          <DataTablePagination table={table} pageSizes={pageSizes} />
           <DataTableViewOptions table={table} />
         </div>
       </div>

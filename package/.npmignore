@@ -1,0 +1,26 @@
+# Exclude development cache and unnecessary build files
+.next/cache/
+.next/trace
+.next/turbopack/
+.next/types/
+
+# Exclude source maps (optional - remove this line if you want to include them)
+**/*.map
+
+# Exclude development webpack files
+.next/cache/webpack/
+
+# Keep only essential Next.js files
+!.next/server/
+!.next/static/
+!.next/build-manifest.json
+!.next/app-build-manifest.json
+!.next/app-path-routes-manifest.json
+!.next/BUILD_ID
+!.next/export-marker.json
+!.next/fallback-build-manifest.json
+!.next/images-manifest.json
+!.next/package.json
+!.next/prerender-manifest.json
+!.next/required-server-files.json
+!.next/routes-manifest.json

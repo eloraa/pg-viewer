@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Table } from '@tanstack/react-table';
+import { type Table } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Trash2Icon } from 'lucide-react';
@@ -10,8 +10,8 @@ import { deleteTableRows } from '@/lib/server/actions';
 import { toast } from 'sonner';
 
 interface ActionsProps {
-  data: any[] | null;
-  table: Table<any>;
+  data: Record<string, unknown>[] | null;
+  table: Table<Record<string, unknown>>;
   schema: string;
   tableName: string;
 }
@@ -21,7 +21,7 @@ export const Actions = ({ data, table, schema, tableName }: ActionsProps) => {
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: (rowData: any[]) => {
+    mutationFn: (rowData: Record<string, unknown>[]) => {
       if (!data || data.length === 0) {
         throw new Error('No rows selected');
       }
@@ -34,8 +34,8 @@ export const Actions = ({ data, table, schema, tableName }: ActionsProps) => {
       setShowDeleteDialog(false);
       table.toggleAllRowsSelected(false);
     },
-    onError: (error: any) => {
-      if (error && typeof error === 'object' && typeof error.message === 'string') {
+    onError: (error: unknown) => {
+      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
         toast.error(error.message);
       } else {
         toast.error('Failed to delete rows');

@@ -20,11 +20,9 @@ import {
 } from '@tanstack/react-table';
 import { DataTableToolbar } from './data-table-toolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DataTablePagination } from './data-table-pagination';
 import { type LucideIcon } from 'lucide-react';
 import { DataTableSkeleton } from './data-table-skeleton';
 import { EditableCell } from './editable-cell';
-import { Button } from '@/components/ui/button';
 
 interface CustomRowProps<TData> {
   row: Row<TData>;
@@ -73,8 +71,8 @@ export type ExtendedColumnDef<TData> = ColumnDef<TData> & {
 interface CellChange<TData> {
   row: TData;
   column: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   rowIndex: number;
 }
 
@@ -105,6 +103,7 @@ interface DataTableProps<TData, TColumns extends ExtendedColumnDef<TData>[]> {
   isEditable?: boolean;
   onCellChange?: (changes: CellChange<TData>[]) => Promise<boolean>;
   resetTrigger?: number;
+  toolbarClassName?: string;
 }
 
 export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = ExtendedColumnDef<TData>[]>({
@@ -130,6 +129,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   isEditable = false,
   onCellChange,
   resetTrigger,
+  toolbarClassName,
 }: DataTableProps<TData, TColumns>) {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -153,7 +153,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   );
 
   const getCellValue = React.useCallback(
-    (rowIndex: number, columnId: string, originalValue: any) => {
+    (rowIndex: number, columnId: string, originalValue: unknown) => {
       const cellKey = getCellKey(rowIndex, columnId);
       const change = pendingChanges.get(cellKey);
       return change ? change.newValue : originalValue;
@@ -172,9 +172,9 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   }, []);
 
   const handleCellChange = React.useCallback(
-    (rowIndex: number, columnId: string, newValue: any) => {
+    (rowIndex: number, columnId: string, newValue: unknown) => {
       const row = data[rowIndex];
-      const oldValue = (row as any)[columnId];
+      const oldValue = (row as Record<string, unknown>)[columnId];
 
       if (oldValue !== newValue) {
         const cellKey = getCellKey(rowIndex, columnId);
@@ -293,6 +293,8 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         table={table}
         placeholder={placeholder}
         selectActions={selectActions}
+        pageSizes={pageSizes}
+        className={toolbarClassName}
       />
       <div>
         <Table>
@@ -315,8 +317,8 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                 customState !== undefined ? (
                   <CustomRow<TData> key={row.id} row={row} customState={customState} onClick={onClick} />
                 ) : (
-                  <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as any)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
-                    {row.getVisibleCells().map((cell, cellIndex) => {
+                  <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as Record<string, unknown>)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
+                    {row.getVisibleCells().map((cell) => {
                       const rowIndex = parseInt(row.id);
                       const columnId = cell.column.id;
                       const isSelectColumn = columnId === 'select';
@@ -327,11 +329,11 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
 
                       if (canEdit && 'accessorKey' in cell.column.columnDef && cell.column.columnDef.accessorKey) {
                         const accessorKey = cell.column.columnDef.accessorKey as string;
-                        const originalValue = (cell.row.original as any)[accessorKey];
+                        const originalValue = (cell.row.original as Record<string, unknown>)[accessorKey];
                         const currentValue = getCellValue(rowIndex, accessorKey, originalValue);
                         const isChangedCell = isCellChanged(rowIndex, accessorKey);
-                        const dataType = (cell.column.columnDef.meta as any)?.type;
-                        const nullable = (cell.column.columnDef.meta as any)?.nullable;
+                        const dataType = (cell.column.columnDef.meta as { type?: string; nullable?: boolean })?.type;
+                        const nullable = (cell.column.columnDef.meta as { type?: string; nullable?: boolean })?.nullable;
 
                         return (
                           <TableCell key={cell.id} className="p-0 max-w-60">
@@ -375,7 +377,6 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} pageSizes={pageSizes} />
     </div>
   );
 }

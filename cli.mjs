@@ -1,5 +1,17 @@
 #!/usr/bin/env node
 
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Set production environment only when running from published package
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const isPublishedPackage = __dirname.includes('node_modules');
+
+if (isPublishedPackage) {
+  process.env.NODE_ENV = 'production';
+}
+
 import { Command } from 'commander';
 import { useState, useEffect, createElement } from 'react';
 import { render, Text, Box, useInput } from 'ink';
@@ -330,7 +342,7 @@ function ServerStarting({ url, shouldSave }) {
 
     startupSequence();
     return () => clearInterval(interval);
-  }, [url]);
+  }, [url, shouldSave, spinnerFrames.length]);
 
   return createElement(
     Box,
@@ -412,7 +424,7 @@ program
         // Display ASCII art once before starting React component
         console.log(ascii);
 
-        const { rerender, unmount } = render(createElement(App), { exitOnCtrlC: false });
+        const { unmount } = render(createElement(App), { exitOnCtrlC: false });
 
         // Set up global unmount function for the ServerStarting component to use
         global.unmountApp = unmount;

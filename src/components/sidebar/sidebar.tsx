@@ -9,6 +9,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { getPanelElement, getResizeHandleElement, type ImperativePanelHandle } from 'react-resizable-panels';
 import { Header } from './header';
 import { DatabaseBrowser } from './database-browser';
+import { useSidebarStore } from '@/store/sidebar';
 
 type SidebarProps = {
   defaultLayout: number[];
@@ -18,6 +19,7 @@ type SidebarProps = {
 
 export const Sidebar = ({ defaultLayout = [25, 75], defaultCollapsed = false, children }: SidebarProps) => {
   const navCollapsedSize = 0;
+  const { expandSidebar, collapseSidebar } = useSidebarStore();
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const [panel, setPanel] = React.useState<ImperativePanelHandle | null>(null);
   const [navOpen, setNavOpen] = React.useState(false);
@@ -132,10 +134,12 @@ export const Sidebar = ({ defaultLayout = [25, 75], defaultCollapsed = false, ch
           maxSize={25}
           onCollapse={() => {
             setIsCollapsed(true);
+            collapseSidebar();
             document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(true)}; path=/`;
           }}
           onExpand={() => {
             setIsCollapsed(false);
+            expandSidebar();
             document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(false)}; path=/`;
           }}
           className={cn(
