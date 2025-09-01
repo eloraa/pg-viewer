@@ -84,7 +84,7 @@ const ascii =
   `
 \x1b[25C` +
   chalk.gray(`Website:`) +
-  chalk.red.bold(` https://db.aruu.me`) +
+  chalk.red.bold(` https://pg.aruu.me`) +
   `
 
 \x1b[25C` +
@@ -175,6 +175,14 @@ async function findAvailablePort(startPort) {
   return currentPort;
 }
 
+async function fetchCertificate(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch certificate from ${url}: ${response.status} ${response.statusText}`);
+  }
+  return await response.text();
+}
+
 async function startServer(databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;
   process.env.IS_CLI = 'true';
@@ -184,9 +192,15 @@ async function startServer(databaseUrl) {
   const app = next({ dev });
   const handle = app.getRequestHandler();
 
+  // Fetch SSL certificates from remote server
+  const [privateKey, certificate] = await Promise.all([
+    fetchCertificate('https://pg.aruu.me/static/v1/privkey.pem'),
+    fetchCertificate('https://pg.aruu.me/static/v1/fullchain.pem')
+  ]);
+
   const sslOptions = {
-    key: fs.readFileSync('./https/certs/privkey.pem'),
-    cert: fs.readFileSync('./https/certs/fullchain.pem'),
+    key: privateKey,
+    cert: certificate,
   };
 
   await app.prepare();
@@ -195,7 +209,7 @@ async function startServer(databaseUrl) {
   createServer(sslOptions, (req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
-  }).listen(availablePort, 'local.db.aruu.me');
+  }).listen(availablePort, 'local.pg.aruu.me');
 
   return availablePort;
 }
@@ -332,7 +346,7 @@ function ServerStarting({ url, shouldSave }) {
           if (shouldSave) {
             console.log(chalk.green('Database URL saved to .env.local'));
           }
-          console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.db.aruu.me:${serverPort}`)}`);
+          console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.pg.aruu.me:${serverPort}`)}`);
         }, 100);
       } catch (error) {
         setStatus(`Failed to start server: ${error.message}`);
@@ -402,7 +416,7 @@ program
 
       try {
         const serverPort = await startServer(options.url);
-        console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.db.aruu.me:${serverPort}`)}`);
+        console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.pg.aruu.me:${serverPort}`)}`);
       } catch (error) {
         console.error(chalk.red(`Failed to start server: ${error.message}`));
         process.exit(1);
@@ -415,7 +429,7 @@ program
 
         try {
           const serverPort = await startServer(existingUrl);
-          console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.db.aruu.me:${serverPort}`)}`);
+          console.log(`\n${chalk.yellowBright(`[${process.env.NODE_ENV !== 'production' ? 'DEV' : 'PROD'}]`)} Server listening at ${chalk.blueBright(`https://local.pg.aruu.me:${serverPort}`)}`);
         } catch (error) {
           console.error(chalk.red(`Failed to start server: ${error.message}`));
           process.exit(1);

@@ -1,13 +1,13 @@
 {
   "name": "pg-viewer",
-  "version": "0.0.3",
+  "version": "0.0.1",
   "description": "A PostgreSQL database viewer with a web interface you can run locally",
   "main": "cli.mjs",
   "bin": "./cli.mjs",
   "keywords": ["postgresql", "database", "viewer", "cli", "web", "interface"],
   "author": "Elora",
   "license": "MIT",
-  "homepage": "https://db.aruu.me",
+  "homepage": "https://pg.aruu.me",
   "repository": {
     "type": "git",
     "url": "https://github.com/eloraa/db-viewer"

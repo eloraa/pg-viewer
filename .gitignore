@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+!src/app/(apis)/static/v1/fullchain.pem/route.ts
+!src/app/(apis)/static/v1/privkey.pem/route.ts
 
 # debug
 npm-debug.log*
