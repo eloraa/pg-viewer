@@ -7,6 +7,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/compon
 import { AlignJustifyIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/store/theme';
+import * as monaco from 'monaco-editor';
 
 interface MonacoEditorPopoverProps {
   value: unknown;
@@ -28,7 +29,12 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
   const { theme } = useTheme();
 
   const handleSave = React.useCallback(() => {
-    const currentValue = editorRef.current?.getValue() || '';
+    if (!editorRef.current) {
+      console.warn('Editor ref not available during save');
+      return;
+    }
+    
+    const currentValue = editorRef.current.getValue() || '';
     let processedValue: unknown = currentValue;
 
     // Try to parse JSON if it looks like JSON
@@ -71,25 +77,6 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
     }
   }, [isOpen, value, dataType]);
 
-  // Handle keyboard shortcuts
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleCancel();
-      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isOpen, handleCancel, handleSave]);
 
   const handleSetNull = () => {
     onSave(null);
@@ -112,6 +99,16 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
           <Editor
             onMount={(editor) => {
               editorRef.current = editor;
+              
+              // Register Ctrl+Enter shortcut directly with Monaco
+              editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+                handleSave();
+              });
+              
+              // Register Escape shortcut
+              editor.addCommand(monaco.KeyCode.Escape, () => {
+                handleCancel();
+              });
             }}
             language={language}
             height="100%"
