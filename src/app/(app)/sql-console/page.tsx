@@ -185,7 +185,7 @@ export default function SQLConsolePage() {
         }
 
         setSchema(Array.from(tableMap.values()));
-        
+
         // Update completions when schema changes
         setTimeout(() => {
           if (editorRef.current) {
@@ -217,7 +217,7 @@ export default function SQLConsolePage() {
         }
       }
     },
-    [query, schema.length]
+    [query, schema.length, executeQuery, loadSchema]
   );
 
   const copyColumnName = (columnName: string, tableName: string) => {
@@ -245,7 +245,7 @@ export default function SQLConsolePage() {
   };
 
   // Helper function to shorten data types
-  const shortenDataType = (dataType: string): string => {
+  const shortenDataType = React.useCallback((dataType: string): string => {
     const typeMap: { [key: string]: string } = {
       'character varying': 'VARCHAR',
       'timestamp without time zone': 'TIMESTAMP',
@@ -260,7 +260,7 @@ export default function SQLConsolePage() {
       json: 'JSON',
     };
     return typeMap[dataType.toLowerCase()] || dataType.toUpperCase();
-  };
+  }, []);
 
   React.useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -279,84 +279,132 @@ export default function SQLConsolePage() {
   }, []);
 
   // Register SQL completion provider
-  const registerSQLCompletions = React.useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
-    console.log('Registering SQL completions with schema:', schema.length, 'tables');
-    
-    const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
-      provideCompletionItems: (model, position) => {
-        console.log('Providing completions, schema has', schema.length, 'tables');
-        
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn
-        };
+  const registerSQLCompletions = React.useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor) => {
+      console.log('Registering SQL completions with schema:', schema.length, 'tables');
 
-        const suggestions: monaco.languages.CompletionItem[] = [];
+      const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
+        provideCompletionItems: (model, position) => {
+          console.log('Providing completions, schema has', schema.length, 'tables');
 
-        // Add table suggestions
-        schema.forEach(table => {
-          suggestions.push({
-            label: table.table_name,
-            kind: monaco.languages.CompletionItemKind.Class,
-            insertText: table.table_name,
-            detail: 'Table',
-            documentation: `Table: ${table.table_name}`,
-            range: range
-          });
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
 
-          // Add column suggestions with table prefix
-          table.columns.forEach(column => {
+          const suggestions: monaco.languages.CompletionItem[] = [];
+
+          // Add table suggestions
+          schema.forEach(table => {
             suggestions.push({
-              label: `${table.table_name}.${column.column_name}`,
-              kind: monaco.languages.CompletionItemKind.Field,
-              insertText: `${table.table_name}.${column.column_name}`,
-              detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
-              documentation: `Column: ${column.column_name} (${column.data_type})`,
-              range: range
+              label: table.table_name,
+              kind: monaco.languages.CompletionItemKind.Class,
+              insertText: table.table_name,
+              detail: 'Table',
+              documentation: `Table: ${table.table_name}`,
+              range: range,
             });
 
-            // Add column suggestions without table prefix for when user is already in context
-            suggestions.push({
-              label: column.column_name,
-              kind: monaco.languages.CompletionItemKind.Field,
-              insertText: column.column_name,
-              detail: `${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
-              documentation: `Column: ${column.column_name} from ${table.table_name} (${column.data_type})`,
-              range: range
+            // Add column suggestions with table prefix
+            table.columns.forEach(column => {
+              suggestions.push({
+                label: `${table.table_name}.${column.column_name}`,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: `${table.table_name}.${column.column_name}`,
+                detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
+                documentation: `Column: ${column.column_name} (${column.data_type})`,
+                range: range,
+              });
+
+              // Add column suggestions without table prefix for when user is already in context
+              suggestions.push({
+                label: column.column_name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: column.column_name,
+                detail: `${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
+                documentation: `Column: ${column.column_name} from ${table.table_name} (${column.data_type})`,
+                range: range,
+              });
             });
           });
-        });
 
-        // Add SQL keywords
-        const sqlKeywords = [
-          'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
-          'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'INSERT', 'UPDATE', 'DELETE',
-          'CREATE', 'DROP', 'ALTER', 'INDEX', 'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES',
-          'NOT NULL', 'UNIQUE', 'DEFAULT', 'CHECK', 'AND', 'OR', 'NOT', 'IN', 'EXISTS',
-          'BETWEEN', 'LIKE', 'ILIKE', 'IS NULL', 'IS NOT NULL', 'DISTINCT', 'COUNT', 'SUM',
-          'AVG', 'MIN', 'MAX', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'AS', 'ON', 'USING'
-        ];
+          // Add SQL keywords
+          const sqlKeywords = [
+            'SELECT',
+            'FROM',
+            'WHERE',
+            'JOIN',
+            'INNER JOIN',
+            'LEFT JOIN',
+            'RIGHT JOIN',
+            'FULL JOIN',
+            'GROUP BY',
+            'ORDER BY',
+            'HAVING',
+            'LIMIT',
+            'OFFSET',
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'CREATE',
+            'DROP',
+            'ALTER',
+            'INDEX',
+            'PRIMARY KEY',
+            'FOREIGN KEY',
+            'REFERENCES',
+            'NOT NULL',
+            'UNIQUE',
+            'DEFAULT',
+            'CHECK',
+            'AND',
+            'OR',
+            'NOT',
+            'IN',
+            'EXISTS',
+            'BETWEEN',
+            'LIKE',
+            'ILIKE',
+            'IS NULL',
+            'IS NOT NULL',
+            'DISTINCT',
+            'COUNT',
+            'SUM',
+            'AVG',
+            'MIN',
+            'MAX',
+            'CASE',
+            'WHEN',
+            'THEN',
+            'ELSE',
+            'END',
+            'AS',
+            'ON',
+            'USING',
+          ];
 
-        sqlKeywords.forEach(keyword => {
-          suggestions.push({
-            label: keyword,
-            kind: monaco.languages.CompletionItemKind.Keyword,
-            insertText: keyword,
-            detail: 'SQL Keyword',
-            range: range
+          sqlKeywords.forEach(keyword => {
+            suggestions.push({
+              label: keyword,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: keyword,
+              detail: 'SQL Keyword',
+              range: range,
+            });
           });
-        });
 
-        console.log('Returning', suggestions.length, 'suggestions');
-        return { suggestions };
-      }
-    });
+          console.log('Returning', suggestions.length, 'suggestions');
+          return { suggestions };
+        },
+      });
 
-    return completionProvider;
-  }, [schema, shortenDataType]);
+      return completionProvider;
+    },
+    [schema, shortenDataType]
+  );
 
   const generateMarkdown = () => {
     if (!result?.data?.length) return '';

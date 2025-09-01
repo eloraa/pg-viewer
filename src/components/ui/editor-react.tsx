@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Editor from '@monaco-editor/react';
 import type { Monaco } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
+import type * as monaco from 'monaco-editor';
 import { useTheme } from '@/store/theme';
 
 export type EditorLanguage = 'json' | 'sql' | 'javascript' | 'typescript' | 'html' | 'css' | 'markdown' | 'plaintext';

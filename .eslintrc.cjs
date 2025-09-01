@@ -14,7 +14,7 @@ const config = {
         allowTemplateLiterals: true,
       },
     ],
-    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/array-type': 'off',
     '@typescript-eslint/consistent-type-definitions': 'off',
     '@typescript-eslint/consistent-type-imports': [
@@ -25,12 +25,13 @@ const config = {
       },
     ],
     '@typescript-eslint/no-unused-vars': [
-      'error',
+      'warn',
       {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
       },
     ],
+    '@typescript-eslint/exhaustive-deps': 'off',
     '@typescript-eslint/require-await': 'off',
     '@typescript-eslint/no-misused-promises': [
       'error',

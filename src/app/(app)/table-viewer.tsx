@@ -3,12 +3,12 @@
 import * as React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTableColumns, useTableData } from '@/data/schema/schema';
-import { DataTable, ExtendedColumnDef } from '@/components/data-table/data-table';
+import { DataTable, type ExtendedColumnDef } from '@/components/data-table/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Column } from '@tanstack/react-table';
+import { type Column } from '@tanstack/react-table';
 import { XIcon } from 'lucide-react';
 import { updateTableData, insertTableRow } from '@/lib/server/actions';
 import { Actions } from './actions';

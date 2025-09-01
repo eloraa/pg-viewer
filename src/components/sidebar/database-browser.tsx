@@ -179,7 +179,7 @@ export const DatabaseBrowser = () => {
           ) : tables && tables.length > 0 ? (
             <div className="space-y-1">
               {tables.map(table => (
-                <Button key={table.name} className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
+                <Button key={table.name} size='sm' className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
                   <TableIcon />
                   <span className="truncate min-w-0">{table.name}</span>
                 </Button>
@@ -193,9 +193,10 @@ export const DatabaseBrowser = () => {
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       <DatabaseActionDialogs action={dialogAction} isOpen={isDialogOpen} onClose={handleDialogClose} selectedSchema={selectedSchema} />
-    </div>
+    </div >
   );
 };

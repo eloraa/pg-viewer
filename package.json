@@ -1,5 +1,5 @@
 {
-  "name": "db-viewer",
+  "name": "pg-viewer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,12 @@
     "cli": "node cli.mjs",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "package:clean": "if exist package\\.next rmdir /s /q package\\.next && if exist package\\https rmdir /s /q package\\https && if exist package\\cli.mjs del package\\cli.mjs && if exist package\\next.config.ts del package\\next.config.ts",
+    "package:prepare": "if not exist package mkdir package",
+    "package:copy": "copy cli.mjs package\\ && xcopy .next package\\.next\\ /e /i && xcopy https package\\https\\ /e /i && copy next.config.ts package\\",
+    "package:build": "npm run build && npm run package:prepare && npm run package:copy",
+    "package:publish": "npm run package:build && cd package && npm publish"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
