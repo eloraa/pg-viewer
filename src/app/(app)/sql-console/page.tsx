@@ -262,11 +262,7 @@ export default function SQLConsolePage() {
         const tables = await getTables(schemaName);
 
         for (const table of tables) {
-          const [columns, constraints, indexes] = await Promise.all([
-            getTableColumns(schemaName, table.name),
-            getTableConstraints(schemaName, table.name),
-            getTableIndexes(schemaName, table.name)
-          ]);
+          const [columns, constraints, indexes] = await Promise.all([getTableColumns(schemaName, table.name), getTableConstraints(schemaName, table.name), getTableIndexes(schemaName, table.name)]);
 
           allTables.push({
             table_name: table.name,
@@ -729,11 +725,17 @@ export default function SQLConsolePage() {
                 <div className="h-full flex flex-col">
                   <div className="flex items-center gap-2 p-2 bg-muted/30 border-b">
                     {result.success ? <CheckCircle2 className="h-4 w-4 text-success-primary" /> : <AlertCircle className="h-4 w-4 text-destructive-primary" />}
-                    <div className="flex items-center gap-2 ml-auto">
-                      <span className="text-xs font-mono">{result.executionTime}ms</span>
+                    <div className="flex items-center gap-2">
                       <span className="text-xs font-mono">
-                        {result.rowCount} {result.rowCount === 1 ? 'row' : 'rows'}
+                        {result.success ? 'Success' : 'Error'} in {result.executionTime}ms
                       </span>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      {result.success && (
+                        <span className="text-xs font-mono">
+                          {result.rowCount} {result.rowCount === 1 ? 'row' : 'rows'}
+                        </span>
+                      )}
 
                       {result.success && result.data.length > 0 && (
                         <>
@@ -814,15 +816,97 @@ export default function SQLConsolePage() {
                         />
                       )
                     ) : result.success ? (
-                      <div className="text-muted-foreground text-center py-4 text-sm">Query executed successfully but returned no results.</div>
-                    ) : null}
-
-                    {(result.message || result.error) && (
-                      <div className="p-2 text-xs border-t bg-muted/20">
-                        {result.message && <p className="font-mono text-muted-foreground">{result.message}</p>}
-                        {result.error && <p className="text-red-500 font-mono">{result.error}</p>}
+                      <div className="text-muted-foreground text-center py-4 text-sm">
+                        <div className="mb-2">Query executed successfully but returned no results.</div>
+                        <div className="text-xs opacity-70">
+                          <div>Execution time: {result.executionTime}ms</div>
+                          <div>Rows affected: {result.rowCount}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground text-center py-4 text-sm">
+                        <div className="mb-2">Query failed to execute</div>
+                        <div className="text-xs opacity-70">
+                          <div>Execution time: {result.executionTime}ms</div>
+                          <div>Error occurred during execution</div>
+                        </div>
                       </div>
                     )}
+
+                    {/* Query Execution Details */}
+                    <div className="p-3 text-xs border-t bg-muted/20">
+                      <div className="font-semibold text-muted-foreground mb-2">Query Execution Details</div>
+
+                      {/* Basic Info */}
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <span className="font-medium">Status:</span>
+                          <span className={`ml-2 px-2 py-1 rounded text-xs ${result.success ? 'text-success-primary' : 'text-destructive-primary'}`}>{result.success ? 'Success' : 'Failed'}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium">Execution Time:</span>
+                          <span className="ml-2 font-mono text-brand-ocean-primary">{result.executionTime}ms</span>
+                        </div>
+                        <div>
+                          <span className="font-medium">Rows Returned:</span>
+                          <span className="ml-2 font-mono text-tertiary">{result.data?.length || 0}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium">Total Rows:</span>
+                          <span className="ml-2 font-mono text-brand-bubblegum-primary">{result.rowCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Messages and Errors */}
+                      {result.message && (
+                        <div className="my-4">
+                          <div className="font-medium text-muted-foreground mb-1">Result Message:</div>
+                          <div className="font-mono bg-muted p-2 rounded text-left break-all text-xs">{result.message}</div>
+                        </div>
+                      )}
+
+                      {result.error && (
+                        <div className="mb-3">
+                          <div className="font-mono text-destructive-primary">{result.error}</div>
+                        </div>
+                      )}
+
+                      {/* Query Type Detection */}
+                      <div className="my-4">
+                        <div className="font-medium text-muted-foreground mb-1">Query Type:</div>
+                        <div className="font-mono bg-muted p-2 rounded text-left text-xs">
+                          {(() => {
+                            const queryUpper = query.trim().toUpperCase();
+                            if (queryUpper.startsWith('SELECT')) return 'SELECT - Data Retrieval';
+                            if (queryUpper.startsWith('INSERT')) return 'INSERT - Data Insertion';
+                            if (queryUpper.startsWith('UPDATE')) return 'UPDATE - Data Modification';
+                            if (queryUpper.startsWith('DELETE')) return 'DELETE - Data Deletion';
+                            if (queryUpper.startsWith('CREATE')) return 'CREATE - Schema Creation';
+                            if (queryUpper.startsWith('ALTER')) return 'ALTER - Schema Modification';
+                            if (queryUpper.startsWith('DROP')) return 'DROP - Schema Deletion';
+                            if (queryUpper.startsWith('TRUNCATE')) return 'TRUNCATE - Table Truncation';
+                            return 'Unknown - Custom Query';
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Additional Context */}
+                      {result.success && result.data && result.data.length === 0 && (
+                        <div className="mb-3">
+                          <div className="font-medium text-muted-foreground mb-1">No Results Context:</div>
+                          <div className="text-xs text-muted-foreground">
+                            {(() => {
+                              const queryUpper = query.trim().toUpperCase();
+                              if (queryUpper.includes('WHERE')) return 'Query has WHERE clause - no rows match the conditions';
+                              if (queryUpper.includes('JOIN')) return 'Query has JOINs - no matching rows found across tables';
+                              if (queryUpper.includes('GROUP BY')) return 'Query has GROUP BY - groups may be empty';
+                              if (queryUpper.includes('HAVING')) return 'Query has HAVING clause - groups filtered out';
+                              return 'Query executed but returned no data rows';
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </ResizablePanel>

@@ -214,7 +214,29 @@ export async function getTableData(
     }
 
     // Get the actual data from the table with filters
-    const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+    // Try to order by created_at first, then fallback to id DESC
+    let dataQuery;
+    try {
+      // Check if created_at column exists
+      const hasCreatedAt = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = ${sql.lit(schemaName)} 
+          AND table_name = ${sql.lit(tableName)} 
+          AND column_name = 'created_at'
+      `.execute(db);
+      
+      if (hasCreatedAt.rows.length > 0) {
+        dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} ORDER BY created_at DESC LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+      } else {
+        // For string IDs, we need to be more careful with ordering
+        // Try to order by id DESC, but if that fails, use no ordering
+        dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} ORDER BY id DESC LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+      }
+    } catch {
+      // Fallback to no ordering if there's an error
+      dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+    }
     const data = await dataQuery.execute(db);
 
     // Get total count for pagination with filters
@@ -395,13 +417,12 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
     }
 
     // Build DELETE query using the identified primary key
-    // // Using IN instead of ANY for better compatibility
-    // const deleteQuery = sql`
-    //   DELETE FROM ${sql.id(schemaName, tableName)}
-    //   WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
-    // `;
+    const deleteQuery = sql`
+      DELETE FROM ${sql.id(schemaName, tableName)}
+      WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
+    `;
 
-    // const _result = await deleteQuery.execute(db);
+    const result = await deleteQuery.execute(db);
 
     return {
       success: true,
@@ -634,25 +655,96 @@ export async function updateTableData(
       throw new Error('No database connection available');
     }
 
-    // We need to identify each row uniquely. For now, we'll assume there's an 'id' column
-    // In a production app, you'd want to identify the primary key(s) dynamically
-    const updatePromises = changes.map(async change => {
-      const { row, column, newValue } = change;
+    console.log('UpdateTableData called with changes:', JSON.stringify(changes, null, 2));
 
-      // Find a unique identifier for the row (assuming 'id' column exists)
-      const rowId = row.id;
+    // Get table columns to identify primary key
+    const columns = await getTableColumns(schemaName, tableName);
+
+    // Query to find the actual primary key column
+    const primaryKeyQuery = sql`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu 
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type = 'PRIMARY KEY'
+        AND tc.table_schema = ${sql.lit(schemaName)}
+        AND tc.table_name = ${sql.lit(tableName)}
+      ORDER BY kcu.ordinal_position
+      LIMIT 1
+    `;
+
+    const primaryKeyResult = await primaryKeyQuery.execute(db);
+    const primaryKeyColumn = (primaryKeyResult.rows[0] as { column_name?: string })?.column_name;
+    
+    if (!primaryKeyColumn) {
+      throw new Error('No primary key constraint found for table');
+    }
+    
+    console.log('Primary key column identified:', primaryKeyColumn);
+
+    // Check if there are duplicate primary key values in the database
+    const duplicateCheckQuery = sql`
+      SELECT ${sql.id(primaryKeyColumn)}, COUNT(*) as count
+      FROM ${sql.id(schemaName, tableName)}
+      GROUP BY ${sql.id(primaryKeyColumn)}
+      HAVING COUNT(*) > 1
+    `;
+    const duplicateResult = await duplicateCheckQuery.execute(db);
+    if (duplicateResult.rows.length > 0) {
+      console.log('WARNING: Found duplicate primary key values:', duplicateResult.rows);
+    } else {
+      console.log('No duplicate primary key values found');
+    }
+
+    // Group changes by row using the primary key
+    const changesByRow = new Map<string, Array<{ column: string; newValue: unknown }>>();
+    
+    changes.forEach(change => {
+      const rowId = (change.row as Record<string, unknown>)[primaryKeyColumn as string];
+      console.log('Row data:', change.row, 'Primary key value:', rowId);
+      console.log('Primary key column name:', primaryKeyColumn);
+      console.log('All row keys:', Object.keys(change.row));
+      
       if (!rowId) {
-        throw new Error('Cannot update row: no primary key (id) found');
+        throw new Error(`Cannot update row: no primary key (${primaryKeyColumn}) found in row data: ${JSON.stringify(change.row)}`);
       }
+      
+      const rowIdStr = String(rowId);
+      if (!changesByRow.has(rowIdStr)) {
+        changesByRow.set(rowIdStr, []);
+      }
+      changesByRow.get(rowIdStr)!.push({
+        column: change.column,
+        newValue: change.newValue
+      });
+    });
 
-      // Build UPDATE query - sql.id() handles proper quoting
+    console.log('Changes grouped by row:', Array.from(changesByRow.entries()));
+
+    // Execute updates for each row
+    const updatePromises = Array.from(changesByRow.entries()).map(async ([rowId, rowChanges]) => {
+      // Build SET clause for all columns being updated in this row
+      const setClauses = rowChanges.map(change => 
+        sql`${sql.id(change.column)} = ${sql.lit(change.newValue)}`
+      );
+
+      // Build UPDATE query using the primary key
       const updateQuery = sql`
         UPDATE ${sql.id(schemaName, tableName)}
-        SET ${sql.id(column)} = ${newValue}
-        WHERE id = ${rowId}
+        SET ${sql.join(setClauses, sql`, `)}
+        WHERE ${sql.id(primaryKeyColumn)} = ${sql.lit(rowId)}
       `;
 
-      return updateQuery.execute(db);
+      console.log('Executing UPDATE for row:', rowId, 'with changes:', rowChanges);
+      console.log('Primary key column:', primaryKeyColumn);
+      console.log('Row ID value:', rowId);
+      console.log('Generated SQL query:', updateQuery.compile(db).sql);
+      console.log('Query parameters:', updateQuery.compile(db).parameters);
+      
+      const result = await updateQuery.execute(db);
+      console.log('UPDATE result:', result);
+      return result;
     });
 
     await Promise.all(updatePromises);

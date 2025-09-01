@@ -32,20 +32,24 @@ export function TableViewer() {
 
   // Filter panel state
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
-  const [filters, setFilters] = React.useState<Array<{
-    id: string;
-    connector: 'where' | 'and' | 'or';
-    column: string;
-    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
-    value: string;
-  }>>([]);
-  const [appliedFilters, setAppliedFilters] = React.useState<Array<{
-    id: string;
-    connector: 'where' | 'and' | 'or';
-    column: string;
-    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
-    value: string;
-  }>>([]);
+  const [filters, setFilters] = React.useState<
+    Array<{
+      id: string;
+      connector: 'where' | 'and' | 'or';
+      column: string;
+      operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+      value: string;
+    }>
+  >([]);
+  const [appliedFilters, setAppliedFilters] = React.useState<
+    Array<{
+      id: string;
+      connector: 'where' | 'and' | 'or';
+      column: string;
+      operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+      value: string;
+    }>
+  >([]);
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
   const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData, isRefetching: isRefetchingTableData } = useTableData(schema, table, appliedFilters);
@@ -114,6 +118,22 @@ export function TableViewer() {
   const handleSaveChanges = React.useCallback(async () => {
     if (!schema || !table) return;
 
+    console.log('handleSaveChanges called with:', {
+      isCreatingNew,
+      pendingChanges: pendingChanges.length,
+      schema,
+      table,
+    });
+    
+    // Debug: Check if any pending changes have __isNew marker
+    pendingChanges.forEach((change, index) => {
+      console.log(`Change ${index}:`, {
+        hasIsNew: '__isNew' in change.row,
+        rowKeys: Object.keys(change.row),
+        rowData: change.row
+      });
+    });
+
     // Check if we're creating a new row or updating existing ones
     if (isCreatingNew && newRowData && pendingChanges.length > 0) {
       // Creating new row
@@ -148,9 +168,11 @@ export function TableViewer() {
       // Updating existing rows
       setIsProcessingChanges(true);
       try {
+        console.log('Calling updateTableData with pending changes:', pendingChanges);
         const result = await updateTableData(schema, table, pendingChanges);
 
         if (result.success) {
+          console.log('Update successful, clearing pending changes and refetching data');
           setPendingChanges([]);
           setResetTrigger(prev => prev + 1);
           refetchTableData();
@@ -353,83 +375,85 @@ export function TableViewer() {
 
   return (
     <>
-      <div className="flex-1 overflow-hidden pt-1">
-        <DataTable
-          columns={dataColumns}
-          data={tableDisplayData}
-          placeholder={`Search in ${table}...`}
-          toolbarClassName={cn(isExpanded ? 'md:pr-14' : 'md:pl-4 md:pr-4.5')}
-          search={dataColumns
-            .map(col => ({
-              label: col.accessorKey || 'Unknown',
-              value: col.accessorKey || '',
-            }))
-            .filter(item => item.value !== '')}
-          isEditable={true}
-          onCellChange={handleCellChange}
-          resetTrigger={resetTrigger}
-          onSelectionChange={setSelectedRows}
-          onTableInstance={setTableInstance}
-          customFilter={[
-            {
-              filter: RefreshButton,
-              label: 'Refresh',
-              props: { onClick: refetchTableData, isLoading: isRefetchingTableData || dataLoading },
-            },
-            {
-              filter: FilterButton,
-              label: 'Filter',
-              props: {
-                isActive: isFilterPanelOpen,
-                onClick: () => {
-                  const newState = !isFilterPanelOpen;
-                  setIsFilterPanelOpen(newState);
-                  
-                  // Add default filter when opening panel for the first time
-                  if (newState && filters.length === 0 && columns && columns.length > 0) {
-                    const defaultFilter = {
-                      id: `filter_${Date.now()}`,
-                      connector: 'where' as const,
-                      column: columns[0].name,
-                      operator: 'equals' as const,
-                      value: '',
-                    };
-                    setFilters([defaultFilter]);
-                  }
+      <div className="flex-1 overflow-hidden py-1 h-full flex">
+        <div className="overflow-y-auto w-full">
+          <DataTable
+            columns={dataColumns}
+            data={tableDisplayData}
+            placeholder={`Search in ${table}...`}
+            toolbarClassName={cn(isExpanded ? 'md:pr-14' : 'md:pl-4 md:pr-4.5')}
+            search={dataColumns
+              .map(col => ({
+                label: col.accessorKey || 'Unknown',
+                value: col.accessorKey || '',
+              }))
+              .filter(item => item.value !== '')}
+            isEditable={true}
+            onCellChange={handleCellChange}
+            resetTrigger={resetTrigger}
+            onSelectionChange={setSelectedRows}
+            onTableInstance={setTableInstance}
+            customFilter={[
+              {
+                filter: RefreshButton,
+                label: 'Refresh',
+                props: { onClick: refetchTableData, isLoading: isRefetchingTableData || dataLoading },
+              },
+              {
+                filter: FilterButton,
+                label: 'Filter',
+                props: {
+                  isActive: isFilterPanelOpen,
+                  onClick: () => {
+                    const newState = !isFilterPanelOpen;
+                    setIsFilterPanelOpen(newState);
+
+                    // Add default filter when opening panel for the first time
+                    if (newState && filters.length === 0 && columns && columns.length > 0) {
+                      const defaultFilter = {
+                        id: `filter_${Date.now()}`,
+                        connector: 'where' as const,
+                        column: columns[0].name,
+                        operator: 'equals' as const,
+                        value: '',
+                      };
+                      setFilters([defaultFilter]);
+                    }
+                  },
                 },
               },
-            },
-            {
-              filter: CreateNewFilter,
-              label: 'Create New',
-              props: {
-                onCreateNew: handleCreateNew,
-                disabled: isCreatingNew || isProcessingChanges,
+              {
+                filter: CreateNewFilter,
+                label: 'Create New',
+                props: {
+                  onCreateNew: handleCreateNew,
+                  disabled: isCreatingNew || isProcessingChanges,
+                },
               },
-            },
-          ]}
-          appendNodeToToolbar={{ 
-            bottom: isFilterPanelOpen ? (
-              <FilterPanel
-                columns={columns?.map(col => ({ name: col.name, type: col.type })) || []}
-                filters={filters}
-                onFiltersChange={setFilters}
-                onClearFilters={() => {
-                  setFilters([]);
-                  setAppliedFilters([]);
-                }}
-                onApplyFilters={() => {
-                  setAppliedFilters([...filters]);
-                }}
-              />
-            ) : null 
-          }}
-          selectActions={
-            selectedRows && selectedRows.length > 0 && tableInstance && schema && table && !isCreatingNew ? (
-              <Actions data={selectedRows} table={tableInstance} schema={schema} tableName={table} />
-            ) : null
-          }
-        />
+            ]}
+            appendNodeToToolbar={{
+              bottom: isFilterPanelOpen ? (
+                <FilterPanel
+                  columns={columns?.map(col => ({ name: col.name, type: col.type })) || []}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onClearFilters={() => {
+                    setFilters([]);
+                    setAppliedFilters([]);
+                  }}
+                  onApplyFilters={() => {
+                    setAppliedFilters([...filters]);
+                  }}
+                />
+              ) : null,
+            }}
+            selectActions={
+              selectedRows && selectedRows.length > 0 && tableInstance && schema && table && !isCreatingNew ? (
+                <Actions data={selectedRows} table={tableInstance} schema={schema} tableName={table} />
+              ) : null
+            }
+          />
+        </div>
       </div>
 
       {/* Fixed bottom bar for save/discard changes */}

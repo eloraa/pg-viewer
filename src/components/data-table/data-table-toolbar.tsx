@@ -96,7 +96,7 @@ export function DataTableToolbar<TData>({
   }, [idOptions, selectedId]);
 
   return (
-    <div className={cn('space-y-2 px-2', className)}>
+    <div className={cn('space-y-2 px-2 sticky top-0 z-10 bg-background border-b', className)}>
       <div className="flex items-end justify-between gap-2 flex-wrap py-1">
         <div className="flex flex-wrap flex-1 items-center gap-2 max-md:space-y-2">
           <div className="flex items-center">

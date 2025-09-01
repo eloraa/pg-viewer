@@ -178,6 +178,16 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
       const row = data[rowIndex];
       const oldValue = (row as Record<string, unknown>)[columnId];
 
+      console.log('DataTable handleCellChange:', {
+        rowIndex,
+        columnId,
+        newValue,
+        oldValue,
+        rowData: row,
+        hasIsNew: '__isNew' in (row as Record<string, unknown>),
+        dataLength: data.length
+      });
+
       if (oldValue !== newValue) {
         const cellKey = getCellKey(rowIndex, columnId);
         const change: CellChange<TData> = {
@@ -284,7 +294,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   if (isLoading) return <DataTableSkeleton />;
 
   return (
-    <div>
+    <>
       <DataTableToolbar<TData>
         filterWith={filterWith}
         defaultStatus={defaultStatus}
@@ -299,7 +309,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         className={toolbarClassName}
       />
       {appendNodeToToolbar && appendNodeToToolbar.bottom}
-      <div className="mt-2">
+      <div>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map(headerGroup => (
@@ -380,6 +390,6 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
           </TableBody>
         </Table>
       </div>
-    </div>
+    </>
   );
 }
