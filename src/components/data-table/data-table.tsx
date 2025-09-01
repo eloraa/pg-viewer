@@ -317,7 +317,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                 customState !== undefined ? (
                   <CustomRow<TData> key={row.id} row={row} customState={customState} onClick={onClick} />
                 ) : (
-                  <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as any)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
+                  <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as Record<string, unknown>)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
                     {row.getVisibleCells().map((cell, _cellIndex) => {
                       const rowIndex = parseInt(row.id);
                       const columnId = cell.column.id;
@@ -329,11 +329,11 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
 
                       if (canEdit && 'accessorKey' in cell.column.columnDef && cell.column.columnDef.accessorKey) {
                         const accessorKey = cell.column.columnDef.accessorKey as string;
-                        const originalValue = (cell.row.original as any)[accessorKey];
+                        const originalValue = (cell.row.original as Record<string, unknown>)[accessorKey];
                         const currentValue = getCellValue(rowIndex, accessorKey, originalValue);
                         const isChangedCell = isCellChanged(rowIndex, accessorKey);
-                        const dataType = (cell.column.columnDef.meta as any)?.type;
-                        const nullable = (cell.column.columnDef.meta as any)?.nullable;
+                        const dataType = (cell.column.columnDef.meta as { type?: string; nullable?: boolean })?.type;
+                        const nullable = (cell.column.columnDef.meta as { type?: string; nullable?: boolean })?.nullable;
 
                         return (
                           <TableCell key={cell.id} className="p-0 max-w-60">

@@ -340,7 +340,7 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
       WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
     `;
 
-    const result = await deleteQuery.execute(db);
+    const _result = await deleteQuery.execute(db);
 
     return {
       success: true,
@@ -357,7 +357,7 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
   }
 }
 
-export async function insertTableRow(schemaName: string, tableName: string, rowData: Record<string, any>) {
+export async function insertTableRow(schemaName: string, tableName: string, rowData: Record<string, unknown>) {
   try {
     const db = await getDb();
     if (!db) {
@@ -466,13 +466,13 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
       result = await insertQuery.execute(db);
     } catch (dbError) {
       const error = dbError instanceof Error ? dbError : new Error('Database error');
-      (error as any).sqlQuery = attemptedSql;
+      (error as Error & { sqlQuery?: string }).sqlQuery = attemptedSql;
       throw error;
     }
 
     if (result.rows.length === 0) {
       const error = new Error('Failed to create new row');
-      (error as any).sqlQuery = attemptedSql;
+      (error as Error & { sqlQuery?: string }).sqlQuery = attemptedSql;
       throw error;
     }
 
@@ -486,8 +486,8 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
     
     // If this is a database error, try to extract the SQL query
     let sqlQuery = 'Unable to reconstruct SQL query';
-    if (error instanceof Error && (error as any).sqlQuery) {
-      sqlQuery = (error as any).sqlQuery;
+    if (error instanceof Error && (error as Error & { sqlQuery?: string }).sqlQuery) {
+      sqlQuery = (error as Error & { sqlQuery?: string }).sqlQuery;
     }
     
     return {
