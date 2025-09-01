@@ -18,6 +18,9 @@ import { Editor } from '@/components/ui/editor';
 import { useTheme } from '@/store/theme';
 import { useSidebarStore } from '@/store/sidebar';
 import { cn } from '@/lib/utils';
+import { RefreshButton } from '@/components/data-table/refresh-table';
+import { FilterButton } from './filter-button';
+import { FilterPanel } from './filter-panel';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
@@ -27,8 +30,25 @@ export function TableViewer() {
   const { theme } = useTheme();
   const { isExpanded } = useSidebarStore();
 
+  // Filter panel state
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
+  const [filters, setFilters] = React.useState<Array<{
+    id: string;
+    connector: 'where' | 'and' | 'or';
+    column: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+    value: string;
+  }>>([]);
+  const [appliedFilters, setAppliedFilters] = React.useState<Array<{
+    id: string;
+    connector: 'where' | 'and' | 'or';
+    column: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+    value: string;
+  }>>([]);
+
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
-  const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData } = useTableData(schema, table);
+  const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData, isRefetching: isRefetchingTableData } = useTableData(schema, table, appliedFilters);
 
   // State for tracking cell changes
   const [pendingChanges, setPendingChanges] = React.useState<
@@ -241,9 +261,7 @@ export function TableViewer() {
         // Add the regular data column
         dataColumns.push({
           accessorKey: column.name as string,
-          header: ({ column: tableColumn }) => (
-            <DataTableColumnHeader column={tableColumn} title={column.name as string} dataType={column.type as string} />
-          ),
+          header: ({ column: tableColumn }) => <DataTableColumnHeader column={tableColumn} title={column.name as string} dataType={column.type as string} />,
           cell: ({ row }: { row: { getValue: (key: string) => unknown } }) => {
             const value = row.getValue(column.name as string);
 
@@ -354,6 +372,34 @@ export function TableViewer() {
           onTableInstance={setTableInstance}
           customFilter={[
             {
+              filter: RefreshButton,
+              label: 'Refresh',
+              props: { onClick: refetchTableData, isLoading: isRefetchingTableData || dataLoading },
+            },
+            {
+              filter: FilterButton,
+              label: 'Filter',
+              props: {
+                isActive: isFilterPanelOpen,
+                onClick: () => {
+                  const newState = !isFilterPanelOpen;
+                  setIsFilterPanelOpen(newState);
+                  
+                  // Add default filter when opening panel for the first time
+                  if (newState && filters.length === 0 && columns && columns.length > 0) {
+                    const defaultFilter = {
+                      id: `filter_${Date.now()}`,
+                      connector: 'where' as const,
+                      column: columns[0].name,
+                      operator: 'equals' as const,
+                      value: '',
+                    };
+                    setFilters([defaultFilter]);
+                  }
+                },
+              },
+            },
+            {
               filter: CreateNewFilter,
               label: 'Create New',
               props: {
@@ -362,6 +408,22 @@ export function TableViewer() {
               },
             },
           ]}
+          appendNodeToToolbar={{ 
+            bottom: isFilterPanelOpen ? (
+              <FilterPanel
+                columns={columns?.map(col => ({ name: col.name, type: col.type })) || []}
+                filters={filters}
+                onFiltersChange={setFilters}
+                onClearFilters={() => {
+                  setFilters([]);
+                  setAppliedFilters([]);
+                }}
+                onApplyFilters={() => {
+                  setAppliedFilters([...filters]);
+                }}
+              />
+            ) : null 
+          }}
           selectActions={
             selectedRows && selectedRows.length > 0 && tableInstance && schema && table && !isCreatingNew ? (
               <Actions data={selectedRows} table={tableInstance} schema={schema} tableName={table} />

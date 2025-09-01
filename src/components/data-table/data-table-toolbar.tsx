@@ -55,7 +55,19 @@ interface DataTableToolbarProps<TData> {
   className?: string;
 }
 
-export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defaultStatus, placeholder, id, dateFilter, customFilter, selectActions, pageSizes, className }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData>({
+  table,
+  statuses = [],
+  filterWith,
+  defaultStatus,
+  placeholder,
+  id,
+  dateFilter,
+  customFilter,
+  selectActions,
+  pageSizes,
+  className,
+}: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
   const selectedRows = table.getSelectedRowModel().rows.length;
 
@@ -154,9 +166,7 @@ export function DataTableToolbar<TData>({ table, statuses = [], filterWith, defa
               )}
 
               {dateFilter && <FilterItem className="[&>*]:h-8" iconOnly={false} onChange={() => {}} defaultRange={undefined} overrideLabel="" checkbox={false} />}
-              {customFilter &&
-                customFilter.length > 0 &&
-                customFilter.map((item, index) => <item.filter className="*:border-dashed border-dashed [&>*]:h-9" label={item.label} key={index} {...item.props} />)}
+              {customFilter && customFilter.length > 0 && customFilter.map((item, index) => <item.filter label={item.label} key={index} {...item.props} />)}
             </>
           )}
         </div>

@@ -104,6 +104,7 @@ interface DataTableProps<TData, TColumns extends ExtendedColumnDef<TData>[]> {
   onCellChange?: (changes: CellChange<TData>[]) => Promise<boolean>;
   resetTrigger?: number;
   toolbarClassName?: string;
+  appendNodeToToolbar?: { bottom?: React.ReactNode };
 }
 
 export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = ExtendedColumnDef<TData>[]>({
@@ -130,6 +131,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   onCellChange,
   resetTrigger,
   toolbarClassName,
+  appendNodeToToolbar,
 }: DataTableProps<TData, TColumns>) {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -282,7 +284,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   if (isLoading) return <DataTableSkeleton />;
 
   return (
-    <div className="space-y-2">
+    <div>
       <DataTableToolbar<TData>
         filterWith={filterWith}
         defaultStatus={defaultStatus}
@@ -296,7 +298,8 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         pageSizes={pageSizes}
         className={toolbarClassName}
       />
-      <div>
+      {appendNodeToToolbar && appendNodeToToolbar.bottom}
+      <div className="mt-2">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map(headerGroup => (
@@ -318,7 +321,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                   <CustomRow<TData> key={row.id} row={row} customState={customState} onClick={onClick} />
                 ) : (
                   <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as Record<string, unknown>)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
-                    {row.getVisibleCells().map((cell) => {
+                    {row.getVisibleCells().map(cell => {
                       const rowIndex = parseInt(row.id);
                       const columnId = cell.column.id;
                       const isSelectColumn = columnId === 'select';

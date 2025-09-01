@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
-import { executeRawSQL } from '@/lib/server/actions';
+import { executeRawSQL, getSchemas, getTables, getTableColumns, getTableConstraints, getTableIndexes } from '@/lib/server/actions';
 import { searchItems } from '@/lib/search';
 import * as monaco from 'monaco-editor';
 
@@ -40,6 +40,7 @@ interface SchemaColumn {
 
 interface SchemaTable {
   table_name: string;
+  schema_name: string;
   columns: SchemaColumn[];
   constraints?: Array<{
     constraint_name: string;
@@ -104,251 +105,199 @@ export default function SQLConsolePage() {
   }, []);
 
   // Register SQL completion provider
-  const registerSQLCompletions = React.useCallback(
-    () => {
-      console.log('Registering SQL completions with schema:', schema.length, 'tables');
+  const registerSQLCompletions = React.useCallback(() => {
+    console.log('Registering SQL completions with schema:', schema.length, 'tables');
 
-      const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
-        provideCompletionItems: (model, position) => {
-          console.log('Providing completions, schema has', schema.length, 'tables');
+    const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
+      provideCompletionItems: (model, position) => {
+        console.log('Providing completions, schema has', schema.length, 'tables');
 
-          const word = model.getWordUntilPosition(position);
-          const range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: word.startColumn,
-            endColumn: word.endColumn,
-          };
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
 
-          const suggestions: monaco.languages.CompletionItem[] = [];
+        const suggestions: monaco.languages.CompletionItem[] = [];
 
-          // Add table suggestions
-          schema.forEach(table => {
+        // Add table suggestions
+        schema.forEach(table => {
+          // Add schema-qualified table name
+          suggestions.push({
+            label: `${table.schema_name}.${table.table_name}`,
+            kind: monaco.languages.CompletionItemKind.Class,
+            insertText: `${table.schema_name}.${table.table_name}`,
+            detail: `Table (${table.schema_name})`,
+            documentation: `Table: ${table.table_name} in schema ${table.schema_name}`,
+            range: range,
+          });
+
+          // Add unqualified table name for convenience
+          suggestions.push({
+            label: table.table_name,
+            kind: monaco.languages.CompletionItemKind.Class,
+            insertText: table.table_name,
+            detail: `Table (${table.schema_name})`,
+            documentation: `Table: ${table.table_name} in schema ${table.schema_name}`,
+            range: range,
+          });
+
+          // Add column suggestions with schema-qualified table prefix
+          table.columns.forEach(column => {
             suggestions.push({
-              label: table.table_name,
-              kind: monaco.languages.CompletionItemKind.Class,
-              insertText: table.table_name,
-              detail: 'Table',
-              documentation: `Table: ${table.table_name}`,
+              label: `${table.schema_name}.${table.table_name}.${column.column_name}`,
+              kind: monaco.languages.CompletionItemKind.Field,
+              insertText: `${table.schema_name}.${table.table_name}.${column.column_name}`,
+              detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
+              documentation: `Column: ${column.column_name} (${column.data_type}) from ${table.schema_name}.${table.table_name}`,
               range: range,
             });
 
-            // Add column suggestions with table prefix
-            table.columns.forEach(column => {
-              suggestions.push({
-                label: `${table.table_name}.${column.column_name}`,
-                kind: monaco.languages.CompletionItemKind.Field,
-                insertText: `${table.table_name}.${column.column_name}`,
-                detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
-                documentation: `Column: ${column.column_name} (${column.data_type})`,
-                range: range,
-              });
-
-              // Add column suggestions without table prefix for when user is already in context
-              suggestions.push({
-                label: column.column_name,
-                kind: monaco.languages.CompletionItemKind.Field,
-                insertText: column.column_name,
-                detail: `${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
-                documentation: `Column: ${column.column_name} from ${table.table_name} (${column.data_type})`,
-                range: range,
-              });
-            });
-          });
-
-          // Add SQL keywords
-          const sqlKeywords = [
-            'SELECT',
-            'FROM',
-            'WHERE',
-            'JOIN',
-            'INNER JOIN',
-            'LEFT JOIN',
-            'RIGHT JOIN',
-            'FULL JOIN',
-            'GROUP BY',
-            'ORDER BY',
-            'HAVING',
-            'LIMIT',
-            'OFFSET',
-            'INSERT',
-            'UPDATE',
-            'DELETE',
-            'CREATE',
-            'DROP',
-            'ALTER',
-            'INDEX',
-            'PRIMARY KEY',
-            'FOREIGN KEY',
-            'REFERENCES',
-            'NOT NULL',
-            'UNIQUE',
-            'DEFAULT',
-            'CHECK',
-            'AND',
-            'OR',
-            'NOT',
-            'IN',
-            'EXISTS',
-            'BETWEEN',
-            'LIKE',
-            'ILIKE',
-            'IS NULL',
-            'IS NOT NULL',
-            'DISTINCT',
-            'COUNT',
-            'SUM',
-            'AVG',
-            'MIN',
-            'MAX',
-            'CASE',
-            'WHEN',
-            'THEN',
-            'ELSE',
-            'END',
-            'AS',
-            'ON',
-            'USING',
-          ];
-
-          sqlKeywords.forEach(keyword => {
+            // Add column suggestions with table prefix only
             suggestions.push({
-              label: keyword,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: keyword,
-              detail: 'SQL Keyword',
+              label: `${table.table_name}.${column.column_name}`,
+              kind: monaco.languages.CompletionItemKind.Field,
+              insertText: `${table.table_name}.${column.column_name}`,
+              detail: `${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}${column.is_nullable === 'NO' ? ' NOT NULL' : ''}`,
+              documentation: `Column: ${column.column_name} (${column.data_type}) from ${table.schema_name}.${table.table_name}`,
+              range: range,
+            });
+
+            // Add column suggestions without table prefix for when user is already in context
+            suggestions.push({
+              label: column.column_name,
+              kind: monaco.languages.CompletionItemKind.Field,
+              insertText: column.column_name,
+              detail: `${table.schema_name}.${table.table_name}.${column.column_name} - ${shortenDataType(column.data_type)}${column.is_primary_key ? ' (PK)' : ''}`,
+              documentation: `Column: ${column.column_name} from ${table.schema_name}.${table.table_name} (${column.data_type})`,
               range: range,
             });
           });
+        });
 
-          console.log('Returning', suggestions.length, 'suggestions');
-          return { suggestions };
-        },
-      });
+        // Add SQL keywords
+        const sqlKeywords = [
+          'SELECT',
+          'FROM',
+          'WHERE',
+          'JOIN',
+          'INNER JOIN',
+          'LEFT JOIN',
+          'RIGHT JOIN',
+          'FULL JOIN',
+          'GROUP BY',
+          'ORDER BY',
+          'HAVING',
+          'LIMIT',
+          'OFFSET',
+          'INSERT',
+          'UPDATE',
+          'DELETE',
+          'CREATE',
+          'DROP',
+          'ALTER',
+          'INDEX',
+          'PRIMARY KEY',
+          'FOREIGN KEY',
+          'REFERENCES',
+          'NOT NULL',
+          'UNIQUE',
+          'DEFAULT',
+          'CHECK',
+          'AND',
+          'OR',
+          'NOT',
+          'IN',
+          'EXISTS',
+          'BETWEEN',
+          'LIKE',
+          'ILIKE',
+          'IS NULL',
+          'IS NOT NULL',
+          'DISTINCT',
+          'COUNT',
+          'SUM',
+          'AVG',
+          'MIN',
+          'MAX',
+          'CASE',
+          'WHEN',
+          'THEN',
+          'ELSE',
+          'END',
+          'AS',
+          'ON',
+          'USING',
+        ];
 
-      return completionProvider;
-    },
-    [schema, shortenDataType]
-  );
+        sqlKeywords.forEach(keyword => {
+          suggestions.push({
+            label: keyword,
+            kind: monaco.languages.CompletionItemKind.Keyword,
+            insertText: keyword,
+            detail: 'SQL Keyword',
+            range: range,
+          });
+        });
+
+        console.log('Returning', suggestions.length, 'suggestions');
+        return { suggestions };
+      },
+    });
+
+    return completionProvider;
+  }, [schema, shortenDataType]);
 
   const loadSchema = React.useCallback(async () => {
     setIsLoadingSchema(true);
     try {
-      // First get columns with primary key info
-      const columnsQuery = `
-        SELECT 
-          t.table_name,
-          c.column_name,
-          c.data_type,
-          c.is_nullable,
-          c.column_default,
-          c.ordinal_position,
-          CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_primary_key
-        FROM information_schema.tables t
-        JOIN information_schema.columns c ON t.table_name = c.table_name
-        LEFT JOIN (
-          SELECT 
-            tc.table_name,
-            kcu.column_name
-          FROM information_schema.table_constraints tc
-          JOIN information_schema.key_column_usage kcu 
-            ON tc.constraint_name = kcu.constraint_name
-          WHERE tc.constraint_type = 'PRIMARY KEY'
-            AND tc.table_schema = 'public'
-        ) pk ON t.table_name = pk.table_name AND c.column_name = pk.column_name
-        WHERE t.table_schema = 'public'
-        ORDER BY t.table_name, c.ordinal_position;
-      `;
+      // Get all schemas first
+      const schemas = await getSchemas();
+      const allTables: SchemaTable[] = [];
 
-      // Get constraints separately
-      const constraintsQuery = `
-        SELECT 
-          tc.table_name,
-          tc.constraint_name,
-          tc.constraint_type,
-          pg_get_constraintdef(pgc.oid) as constraint_definition
-        FROM information_schema.table_constraints tc
-        JOIN pg_constraint pgc ON pgc.conname = tc.constraint_name
-        WHERE tc.table_schema = 'public'
-        ORDER BY tc.table_name, tc.constraint_name;
-      `;
+      // For each schema, get its tables and columns
+      for (const schemaName of schemas) {
+        const tables = await getTables(schemaName);
 
-      // Get indexes separately
-      const indexesQuery = `
-        SELECT 
-          tablename as table_name,
-          indexname,
-          indexdef
-        FROM pg_indexes
-        WHERE schemaname = 'public'
-        ORDER BY tablename, indexname;
-      `;
+        for (const table of tables) {
+          const [columns, constraints, indexes] = await Promise.all([
+            getTableColumns(schemaName, table.name),
+            getTableConstraints(schemaName, table.name),
+            getTableIndexes(schemaName, table.name)
+          ]);
 
-      const [columnsResult, constraintsResult, indexesResult] = await Promise.all([executeRawSQL(columnsQuery), executeRawSQL(constraintsQuery), executeRawSQL(indexesQuery)]);
-
-      if (columnsResult.success) {
-        // Group columns by table
-        const tableMap = new Map();
-
-        (columnsResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
-          if (!tableMap.has(row.table_name)) {
-            tableMap.set(row.table_name, {
-              table_name: row.table_name,
-              columns: [],
-              constraints: [],
-              indexes: [],
-            });
-          }
-
-          tableMap.get(row.table_name).columns.push({
-            column_name: row.column_name,
-            data_type: row.data_type,
-            is_nullable: row.is_nullable,
-            column_default: row.column_default,
-            table_name: row.table_name,
-            is_primary_key: row.is_primary_key,
-          });
-        });
-
-        // Add constraints
-        if (constraintsResult.success) {
-          (constraintsResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
-            const table = tableMap.get(row.table_name);
-            if (table) {
-              table.constraints.push({
-                constraint_name: row.constraint_name,
-                constraint_type: row.constraint_type,
-                definition: row.constraint_definition,
-              });
-            }
+          allTables.push({
+            table_name: table.name,
+            schema_name: schemaName,
+            columns: columns.map(col => ({
+              column_name: col.name,
+              data_type: col.type,
+              is_nullable: col.nullable ? 'YES' : 'NO',
+              column_default: null,
+              table_name: table.name,
+              is_primary_key: false, // We could enhance this later
+              foreign_table_name: col.foreignKey?.referencedTable,
+              foreign_column_name: col.foreignKey?.referencedColumn,
+            })),
+            constraints,
+            indexes,
           });
         }
-
-        // Add indexes
-        if (indexesResult.success) {
-          (indexesResult.data as Record<string, unknown>[]).forEach((row: Record<string, unknown>) => {
-            const table = tableMap.get(row.table_name);
-            if (table) {
-              table.indexes.push({
-                indexname: row.indexname,
-                indexdef: row.indexdef,
-              });
-            }
-          });
-        }
-
-        setSchema(Array.from(tableMap.values()));
-
-        // Update completions when schema changes
-        setTimeout(() => {
-          if (editorRef.current) {
-            if (completionProviderRef.current) {
-              completionProviderRef.current.dispose();
-            }
-            completionProviderRef.current = registerSQLCompletions();
-          }
-        }, 50);
       }
+
+      setSchema(allTables);
+
+      // Update completions when schema changes
+      setTimeout(() => {
+        if (editorRef.current) {
+          if (completionProviderRef.current) {
+            completionProviderRef.current.dispose();
+          }
+          completionProviderRef.current = registerSQLCompletions();
+        }
+      }, 50);
     } catch (error) {
       console.error('Failed to load schema:', error);
     } finally {
@@ -495,24 +444,44 @@ export default function SQLConsolePage() {
     }
   };
 
-  // Use fuzzy search for better filtering
-  const filteredTables = React.useMemo(() => {
-    if (!searchTerm.trim()) return schema;
+  // Group tables by schema and apply filtering
+  const groupedAndFilteredTables = React.useMemo(() => {
+    let tablesToProcess = schema;
 
-    const searchableItems = schema.map(table => ({
-      ...table,
-      searchText: table.table_name,
-    }));
+    // Apply search filter if there's a search term
+    if (searchTerm.trim()) {
+      const searchableItems = schema.map(table => ({
+        ...table,
+        searchText: `${table.schema_name}.${table.table_name}`,
+      }));
 
-    return searchItems(searchableItems, searchTerm, {
-      getText: item => item.table_name,
-      getKeywords: item => item.columns.map((col: SchemaColumn) => col.column_name),
-      limit: 50,
-      minScore: 0.1,
-    }).map(result => result.item);
+      tablesToProcess = searchItems(searchableItems, searchTerm, {
+        getText: item => `${item.schema_name}.${item.table_name}`,
+        getKeywords: item => item.columns.map((col: SchemaColumn) => col.column_name),
+        limit: 50,
+        minScore: 0.1,
+      }).map(result => result.item);
+    }
+
+    // Group by schema
+    const grouped = new Map<string, SchemaTable[]>();
+    tablesToProcess.forEach(table => {
+      if (!grouped.has(table.schema_name)) {
+        grouped.set(table.schema_name, []);
+      }
+      grouped.get(table.schema_name)!.push(table);
+    });
+
+    // Convert to array and sort schemas
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([schemaName, tables]) => ({
+        schemaName,
+        tables: tables.sort((a, b) => a.table_name.localeCompare(b.table_name)),
+      }));
   }, [schema, searchTerm]);
 
-  const selectedTableData = selectedTable ? schema.find(t => t.table_name === selectedTable) : null;
+  const selectedTableData = selectedTable ? schema.find(t => `${t.schema_name}.${t.table_name}` === selectedTable) : null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -536,22 +505,29 @@ export default function SQLConsolePage() {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-auto max-h-[90vh]">
                   {isLoadingSchema ? (
                     <div className="flex items-center justify-center py-8">
                       <div className="text-muted-foreground text-sm">Loading schema...</div>
                     </div>
                   ) : (
-                    <div className="p-2">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-2">public</div>
-                      {filteredTables.map(table => (
-                        <div
-                          key={table.table_name}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 ${selectedTable === table.table_name ? 'bg-muted' : ''}`}
-                          onClick={() => setSelectedTable(table.table_name)}
-                        >
-                          <Database className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-mono">{table.table_name}</span>
+                    <div className="p-2 pb-6">
+                      {groupedAndFilteredTables.map(({ schemaName, tables }) => (
+                        <div key={schemaName} className="mb-4">
+                          <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-2">{schemaName}</div>
+                          {tables.map(table => {
+                            const tableKey = `${table.schema_name}.${table.table_name}`;
+                            return (
+                              <div
+                                key={tableKey}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 ${selectedTable === tableKey ? 'bg-muted' : ''}`}
+                                onClick={() => setSelectedTable(tableKey)}
+                              >
+                                <Database className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-mono">{table.table_name}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
@@ -560,7 +536,7 @@ export default function SQLConsolePage() {
               </div>
 
               {/* Right Panel - Columns */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col overflow-hidden max-h-[90vh]">
                 {selectedTableData ? (
                   <>
                     <div className="p-3 border-b">
@@ -570,115 +546,117 @@ export default function SQLConsolePage() {
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-sm font-mono">{selectedTableData.table_name}</span>
-                        <span className="text-sm text-muted-foreground">public</span>
+                        <span className="text-sm text-muted-foreground">{selectedTableData.schema_name}</span>
                       </div>
                     </div>
 
-                    <div className="p-3 border-b">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wide">COLUMNS</div>
-                    </div>
-
-                    <div className="flex-1 overflow-auto">
-                      {selectedTableData.columns.map(column => (
-                        <div
-                          key={column.column_name}
-                          className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
-                          onClick={e => {
-                            e.preventDefault();
-                            copyColumnName(column.column_name, selectedTableData.table_name);
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono">{column.column_name}</span>
-                            <span className="text-xs text-muted-foreground">{shortenDataType(column.data_type)}</span>
-                            {column.is_primary_key && <span className="text-xs text-red-500">PRIMARY KEY</span>}
-                            {column.is_nullable === 'NO' && !column.is_primary_key && <span className="text-xs text-red-500">NOT NULL</span>}
-                          </div>
+                    <div className="overflow-hidden min-h-0 relative flex flex-col">
+                      <div className="overflow-y-auto">
+                        <div className="p-3 border-b bg-popover sticky -top-0.5 -mt-0.5">
+                          <div className="text-xs text-muted-foreground uppercase tracking-wide">COLUMNS</div>
                         </div>
-                      ))}
 
-                      {/* Constraints Section */}
-                      {selectedTableData.constraints && selectedTableData.constraints.length > 0 && (
-                        <>
-                          <div className="p-3 border-b bg-muted/10">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wide">CONSTRAINTS</div>
+                        {selectedTableData.columns.map(column => (
+                          <div
+                            key={column.column_name}
+                            className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
+                            onClick={e => {
+                              e.preventDefault();
+                              copyColumnName(column.column_name, selectedTableData.table_name);
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-mono">{column.column_name}</span>
+                              <span className="text-xs text-muted-foreground">{shortenDataType(column.data_type)}</span>
+                              {column.is_primary_key && <span className="text-xs text-red-500">PRIMARY KEY</span>}
+                              {column.is_nullable === 'NO' && !column.is_primary_key && <span className="text-xs text-red-500">NOT NULL</span>}
+                            </div>
                           </div>
-                          {selectedTableData.constraints.map((constraint: { constraint_name: string; constraint_type: string; definition: string }, index: number) => {
-                            // Extract useful information from constraint definition
-                            const getUsefulConstraintInfo = (constraint: { constraint_name: string; constraint_type: string; definition: string }) => {
-                              const def = constraint.definition || '';
-                              const type = constraint.constraint_type;
+                        ))}
 
-                              if (type === 'PRIMARY KEY') {
-                                // Extract column name from "PRIMARY KEY (column_name)"
-                                const match = def.match(/PRIMARY KEY \(([^)]+)\)/);
-                                return match ? match[1] : constraint.constraint_name;
-                              } else if (type === 'FOREIGN KEY') {
-                                // Extract "table.column REFERENCES other_table(other_column)"
-                                const match = def.match(/FOREIGN KEY \(([^)]+)\) REFERENCES ([^(]+)\(([^)]+)\)/);
-                                if (match) {
-                                  return `${match[1]} -> ${match[2].trim()}(${match[3]})`;
+                        {/* Constraints Section */}
+                        {selectedTableData.constraints && selectedTableData.constraints.length > 0 && (
+                          <>
+                            <div className="p-3 border-b bg-popover sticky -top-0.5 -mt-0.5">
+                              <div className="text-xs text-muted-foreground uppercase tracking-wide">CONSTRAINTS</div>
+                            </div>
+                            {selectedTableData.constraints.map((constraint: { constraint_name: string; constraint_type: string; definition: string }, index: number) => {
+                              // Extract useful information from constraint definition
+                              const getUsefulConstraintInfo = (constraint: { constraint_name: string; constraint_type: string; definition: string }) => {
+                                const def = constraint.definition || '';
+                                const type = constraint.constraint_type;
+
+                                if (type === 'PRIMARY KEY') {
+                                  // Extract column name from "PRIMARY KEY (column_name)"
+                                  const match = def.match(/PRIMARY KEY \(([^)]+)\)/);
+                                  return match ? match[1] : constraint.constraint_name;
+                                } else if (type === 'FOREIGN KEY') {
+                                  // Extract "table.column REFERENCES other_table(other_column)"
+                                  const match = def.match(/FOREIGN KEY \(([^)]+)\) REFERENCES ([^(]+)\(([^)]+)\)/);
+                                  if (match) {
+                                    return `${match[1]} -> ${match[2].trim()}(${match[3]})`;
+                                  }
+                                  return constraint.constraint_name;
+                                } else if (type === 'CHECK') {
+                                  // For CHECK constraints, copy the constraint name as it's more useful
+                                  return constraint.constraint_name;
+                                } else if (type === 'UNIQUE') {
+                                  // Extract column name from "UNIQUE (column_name)"
+                                  const match = def.match(/UNIQUE \(([^)]+)\)/);
+                                  return match ? `UNIQUE ${match[1]}` : constraint.constraint_name;
                                 }
+
                                 return constraint.constraint_name;
-                              } else if (type === 'CHECK') {
-                                // For CHECK constraints, copy the constraint name as it's more useful
-                                return constraint.constraint_name;
-                              } else if (type === 'UNIQUE') {
-                                // Extract column name from "UNIQUE (column_name)"
-                                const match = def.match(/UNIQUE \(([^)]+)\)/);
-                                return match ? `UNIQUE ${match[1]}` : constraint.constraint_name;
-                              }
+                              };
 
-                              return constraint.constraint_name;
-                            };
+                              const copyText = getUsefulConstraintInfo(constraint);
 
-                            const copyText = getUsefulConstraintInfo(constraint);
+                              return (
+                                <div
+                                  key={index}
+                                  className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    navigator.clipboard.writeText(copyText);
+                                    toast.success(`Copied ${copyText}`);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-mono">{constraint.constraint_name}</span>
+                                    <span className="text-xs text-muted-foreground">{constraint.constraint_type}</span>
+                                  </div>
+                                  {constraint.definition && <div className="text-xs text-muted-foreground mt-1 font-mono">{constraint.definition}</div>}
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
 
-                            return (
+                        {/* Indexes Section */}
+                        {selectedTableData.indexes && selectedTableData.indexes.length > 0 && (
+                          <>
+                            <div className="p-3 border-b bg-popover sticky -top-0.5 -mt-0.5">
+                              <div className="text-xs text-muted-foreground uppercase tracking-wide">INDEXES</div>
+                            </div>
+                            {selectedTableData.indexes.map((index: { indexname: string; indexdef: string }, idx: number) => (
                               <div
-                                key={index}
+                                key={idx}
                                 className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
                                 onClick={e => {
                                   e.preventDefault();
-                                  navigator.clipboard.writeText(copyText);
-                                  toast.success(`Copied ${copyText}`);
+                                  navigator.clipboard.writeText(index.indexname);
+                                  toast.success(`Copied ${index.indexname}`);
                                 }}
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm font-mono">{constraint.constraint_name}</span>
-                                  <span className="text-xs text-muted-foreground">{constraint.constraint_type}</span>
+                                  <span className="text-sm font-mono">{index.indexname}</span>
+                                  <span className="text-xs text-muted-foreground">{index.indexdef?.includes('UNIQUE') ? 'UNIQUE INDEX' : 'INDEX'}</span>
                                 </div>
-                                {constraint.definition && <div className="text-xs text-muted-foreground mt-1 font-mono">{constraint.definition}</div>}
                               </div>
-                            );
-                          })}
-                        </>
-                      )}
-
-                      {/* Indexes Section */}
-                      {selectedTableData.indexes && selectedTableData.indexes.length > 0 && (
-                        <>
-                          <div className="p-3 border-b bg-muted/10">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wide">INDEXES</div>
-                          </div>
-                          {selectedTableData.indexes.map((index: { indexname: string; indexdef: string }, idx: number) => (
-                            <div
-                              key={idx}
-                              className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"
-                              onClick={e => {
-                                e.preventDefault();
-                                navigator.clipboard.writeText(index.indexname);
-                                toast.success(`Copied ${index.indexname}`);
-                              }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-mono">{index.indexname}</span>
-                                <span className="text-xs text-muted-foreground">{index.indexdef?.includes('UNIQUE') ? 'UNIQUE INDEX' : 'INDEX'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </>
-                      )}
+                            ))}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (

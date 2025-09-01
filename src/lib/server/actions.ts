@@ -10,11 +10,12 @@ export async function getSchemas() {
       throw new Error('No database connection available');
     }
 
-    const excludedSchemas = ['information_schema', 'pg_catalog', 'pg_toast'];
+    
+
     const result = await sql<{ schema_name: string }>`
       SELECT schema_name 
       FROM information_schema.schemata 
-      WHERE schema_name NOT IN (${sql.join(excludedSchemas.map(s => sql.lit(s)))})
+      WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
       ORDER BY schema_name
     `.execute(db);
 
@@ -143,19 +144,81 @@ export async function getTableColumns(schemaName: string, tableName: string) {
   }
 }
 
-export async function getTableData(schemaName: string, tableName: string, limit: number = 100, offset: number = 0) {
+export async function getTableData(
+  schemaName: string, 
+  tableName: string, 
+  limit: number = 100, 
+  offset: number = 0,
+  filters?: Array<{
+    connector: 'where' | 'and' | 'or';
+    column: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+    value: string;
+  }>
+) {
   try {
     const db = await getDb();
     if (!db) {
       throw new Error('No database connection available');
     }
 
-    // Get the actual data from the table - sql.id() handles proper quoting
-    const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+    // Build WHERE clause from filters
+    let whereClause = sql``;
+    if (filters && filters.length > 0) {
+      const conditions = filters.map((filter, index) => {
+        const column = sql.id(filter.column);
+        const value = sql.lit(filter.value);
+        
+        let condition;
+        switch (filter.operator) {
+          case 'equals':
+            condition = sql`${column} = ${value}`;
+            break;
+          case 'not_equals':
+            condition = sql`${column} != ${value}`;
+            break;
+          case 'contains':
+            condition = sql`${column} ILIKE ${'%' + filter.value + '%'}`;
+            break;
+          case 'starts_with':
+            condition = sql`${column} ILIKE ${filter.value + '%'}`;
+            break;
+          case 'ends_with':
+            condition = sql`${column} ILIKE ${'%' + filter.value}`;
+            break;
+          case 'greater_than':
+            condition = sql`${column} > ${value}`;
+            break;
+          case 'less_than':
+            condition = sql`${column} < ${value}`;
+            break;
+          case 'is_null':
+            condition = sql`${column} IS NULL`;
+            break;
+          case 'is_not_null':
+            condition = sql`${column} IS NOT NULL`;
+            break;
+          default:
+            condition = sql`${column} = ${value}`;
+        }
+
+        if (index === 0) {
+          return condition;
+        } else {
+          const connector = filter.connector === 'or' ? sql` OR ` : sql` AND `;
+          return sql`${connector}${condition}`;
+        }
+      });
+
+      whereClause = sql` WHERE ${sql.join(conditions, sql``)}`;
+    }
+
+    // Get the actual data from the table with filters
+    const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
     const data = await dataQuery.execute(db);
 
-    // Get total count for pagination
-    const countQuery = sql`SELECT COUNT(*) as total FROM ${sql.id(schemaName, tableName)}`;
+    // Get total count for pagination with filters
+    const countQuery = sql`SELECT COUNT(*) as total FROM ${sql.id(schemaName, tableName)}${whereClause}`;
     const countResult = await countQuery.execute(db);
     const total = Number((countResult.rows[0] as { total?: number })?.total || 0);
 
@@ -487,6 +550,70 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
       error: error instanceof Error ? error.message : 'Unknown error occurred',
       sqlQuery,
     };
+  }
+}
+
+export async function getTableConstraints(schemaName: string, tableName: string) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    const result = await sql<{
+      constraint_name: string;
+      constraint_type: string;
+      constraint_definition: string;
+    }>`
+      SELECT 
+        tc.constraint_name,
+        tc.constraint_type,
+        pg_get_constraintdef(pgc.oid) as constraint_definition
+      FROM information_schema.table_constraints tc
+      JOIN pg_constraint pgc ON pgc.conname = tc.constraint_name
+      WHERE tc.table_schema = ${sql.lit(schemaName)}
+        AND tc.table_name = ${sql.lit(tableName)}
+      ORDER BY tc.constraint_name
+    `.execute(db);
+
+    return result.rows.map(row => ({
+      constraint_name: row.constraint_name,
+      constraint_type: row.constraint_type,
+      definition: row.constraint_definition,
+    }));
+  } catch (error) {
+    console.error('Error fetching table constraints:', error);
+    throw new Error(`Failed to fetch constraints for table: ${tableName}`);
+  }
+}
+
+export async function getTableIndexes(schemaName: string, tableName: string) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    const result = await sql<{
+      indexname: string;
+      indexdef: string;
+    }>`
+      SELECT 
+        indexname,
+        indexdef
+      FROM pg_indexes
+      WHERE schemaname = ${sql.lit(schemaName)}
+        AND tablename = ${sql.lit(tableName)}
+      ORDER BY indexname
+    `.execute(db);
+
+    return result.rows.map(row => ({
+      indexname: row.indexname,
+      indexdef: row.indexdef,
+    }));
+  } catch (error) {
+    console.error('Error fetching table indexes:', error);
+    throw new Error(`Failed to fetch indexes for table: ${tableName}`);
   }
 }
 

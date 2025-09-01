@@ -46,10 +46,22 @@ export const useTableColumns = (schemaName: string | null, tableName: string | n
   });
 };
 
-export const useTableData = (schemaName: string | null, tableName: string | null, limit: number = 100, offset: number = 0) => {
+export const useTableData = (
+  schemaName: string | null, 
+  tableName: string | null, 
+  filters?: Array<{
+    id: string;
+    connector: 'where' | 'and' | 'or';
+    column: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
+    value: string;
+  }>,
+  limit: number = 100, 
+  offset: number = 0
+) => {
   return useQuery({
-    queryKey: ['tableData', schemaName, tableName, limit, offset],
-    queryFn: () => getTableData(schemaName!, tableName!, limit, offset),
+    queryKey: ['tableData', schemaName, tableName, filters, limit, offset],
+    queryFn: () => getTableData(schemaName!, tableName!, limit, offset, filters),
     enabled: !!schemaName && !!tableName,
     staleTime: 2 * 60 * 1000, // 2 minutes (shorter for data)
   });

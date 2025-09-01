@@ -14,22 +14,16 @@ export interface RefreshButtonProps extends CustomFilterProps {
 export const RefreshButton = ({ onClick, isLoading = false, ...props }: RefreshButtonProps) => {
   return (
     <div {...props}>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onClick}
-        disabled={isLoading || !onClick}
-        className="h-9 bg-background border-border dark:bg-background"
-      >
+      <Button variant="outline" size="icon" onClick={onClick} disabled={isLoading || !onClick} className="size-8 bg-background border-border dark:bg-background">
         {isLoading ? (
           <div className="flex items-center gap-1">
             <Spinner />
-            <span>Refreshing...</span>
+            <span className="sr-only">Refreshing...</span>
           </div>
         ) : (
           <div className="flex items-center gap-1">
             <RefreshCwIcon className="h-4 w-4" />
-            <span>Refresh</span>
+            <span className="sr-only">Refresh</span>
           </div>
         )}
       </Button>
