@@ -23,29 +23,30 @@ interface MonacoEditorPopoverProps {
 
 export function MonacoEditorPopover({ value, dataType, nullable = false, onSave, onCancel, trigger, children, disabled = false, className, ancorClass }: MonacoEditorPopoverProps) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [editorValue, setEditorValue] = React.useState('');
   const [language, setLanguage] = React.useState<EditorLanguage>('plaintext');
+  const editorRef = React.useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null);
   const { theme } = useTheme();
 
   const handleSave = React.useCallback(() => {
-    let processedValue: unknown = editorValue;
+    const currentValue = editorRef.current?.getValue() || '';
+    let processedValue: unknown = currentValue;
 
     // Try to parse JSON if it looks like JSON
-    if (language === 'json' && editorValue.trim()) {
+    if (language === 'json' && currentValue.trim()) {
       try {
-        processedValue = JSON.parse(editorValue);
+        processedValue = JSON.parse(currentValue);
       } catch {
         // If JSON parsing fails, keep as string
-        processedValue = editorValue;
+        processedValue = currentValue;
       }
-    } else if (editorValue === '') {
+    } else if (currentValue === '') {
       // Handle empty values - convert to null if nullable, otherwise keep as empty string
       processedValue = nullable ? null : '';
     }
 
     onSave(processedValue);
     setIsOpen(false);
-  }, [editorValue, language, nullable, onSave]);
+  }, [language, nullable, onSave]);
 
   const handleCancel = React.useCallback(() => {
     onCancel();
@@ -54,7 +55,7 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
 
   // Initialize editor value and language when popover opens
   React.useEffect(() => {
-    if (isOpen) {
+    if (isOpen && editorRef.current) {
       // Convert value to string for editor
       let stringValue = '';
       if (value === null || value === undefined) {
@@ -65,7 +66,7 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
         stringValue = String(value);
       }
 
-      setEditorValue(stringValue);
+      editorRef.current.setValue(stringValue);
       setLanguage(getEditorLanguage(dataType));
     }
   }, [isOpen, value, dataType]);
@@ -109,8 +110,9 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
         {/* Monaco Editor */}
         <div className="flex-1 min-h-0">
           <Editor
-            value={editorValue}
-            onChange={setEditorValue}
+            onMount={(editor) => {
+              editorRef.current = editor;
+            }}
             language={language}
             height="100%"
             options={{

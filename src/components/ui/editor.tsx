@@ -7,8 +7,8 @@ import * as monaco from 'monaco-editor';
 export type EditorLanguage = 'json' | 'sql' | 'javascript' | 'typescript' | 'html' | 'css' | 'markdown' | 'plaintext';
 
 interface EditorProps {
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: (value: string) => void;
   language?: EditorLanguage;
   height?: number | string;
   width?: number | string;
@@ -26,7 +26,7 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
     // Default editor options
     const defaultOptions: monaco.editor.IStandaloneEditorConstructionOptions = React.useMemo(
       () => ({
-        value,
+        value: value || '',
         language,
         theme: 'vs-dark',
         automaticLayout: true,
@@ -55,11 +55,11 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
       editorRef.current = editor;
       setIsEditorReady(true);
 
-      // Set up value change listener
-      const subscription = editor.onDidChangeModelContent(() => {
+      // Set up value change listener only if onChange is provided
+      const subscription = onChange ? editor.onDidChangeModelContent(() => {
         const newValue = editor.getValue();
         onChange(newValue);
-      });
+      }) : null;
 
       // Call onMount callback if provided
       if (onMount) {
@@ -77,7 +77,9 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
 
       // Cleanup function
       return () => {
-        subscription.dispose();
+        if (subscription) {
+          subscription.dispose();
+        }
         editor.dispose();
         if (ref) {
           if (typeof ref === 'function') {
@@ -91,7 +93,7 @@ export const Editor = React.forwardRef<monaco.editor.IStandaloneCodeEditor | nul
 
     // Update editor value when prop changes (controlled input)
     React.useEffect(() => {
-      if (isEditorReady && editorRef.current) {
+      if (isEditorReady && editorRef.current && value !== undefined) {
         const currentValue = editorRef.current.getValue();
         if (currentValue !== value) {
           editorRef.current.setValue(value);
