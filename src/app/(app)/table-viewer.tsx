@@ -358,7 +358,7 @@ export function TableViewer() {
           columns={dataColumns}
           data={tableDisplayData}
           placeholder={`Search in ${table}...`}
-          toolbarClassName={cn(isExpanded ? 'pr-14' : 'pl-4 pr-4.5')}
+          toolbarClassName={cn(isExpanded ? 'md:pr-14' : 'md:pl-4 md:pr-4.5')}
           search={dataColumns
             .map(col => ({
               label: col.accessorKey || 'Unknown',
