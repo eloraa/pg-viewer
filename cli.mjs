@@ -3,14 +3,9 @@
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-// Set production environment only when running from published package
+// Get the CLI's directory location
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const isPublishedPackage = __dirname.includes('node_modules');
-
-if (isPublishedPackage) {
-  process.env.NODE_ENV = 'production';
-}
 
 import { Command } from 'commander';
 import { useState, useEffect, createElement } from 'react';
@@ -188,8 +183,8 @@ async function startServer(databaseUrl) {
   process.env.IS_CLI = 'true';
 
   const port = parseInt(process.env.PORT || '3000', 10);
-  const dev = process.env.NODE_ENV !== 'production';
-  const app = next({ dev });
+  
+  const app = next({ dir: __dirname });
   const handle = app.getRequestHandler();
 
   // Fetch SSL certificates from remote server

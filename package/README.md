@@ -1,4 +1,4 @@
-# pg-viewer
+# pg-viewer-cli
 
 A PostgreSQL database viewer with a web interface you can run locally.
 
@@ -10,16 +10,16 @@ A PostgreSQL database viewer with a web interface you can run locally.
 
 ```bash
 # Run with interactive prompt
-pnpx pg-viewer
+pnpx pg-viewer-cli
 
 # Run with database URL directly
-npx pg-viewer -u postgres://user:password@localhost:5432/database
+npx pg-viewer-cli -u postgres://user:password@localhost:5432/database
 ```
 
 ## Installation
 
 ```bash
-pnpm install -g pg-viewer
+pnpm install -g pg-viewer-cli
 ```
 
 ### Options

@@ -10,6 +10,9 @@
 # Exclude development webpack files
 .next/cache/webpack/
 
+# Exclude environment variables
+.env*
+
 # Keep only essential Next.js files
 !.next/server/
 !.next/static/
