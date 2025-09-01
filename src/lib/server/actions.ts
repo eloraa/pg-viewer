@@ -416,14 +416,6 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
       throw new Error(`No valid primary key values found in column '${primaryKeyColumn}'`);
     }
 
-    // Build DELETE query using the identified primary key
-    const deleteQuery = sql`
-      DELETE FROM ${sql.id(schemaName, tableName)}
-      WHERE ${sql.id(primaryKeyColumn)} IN (${sql.join(primaryKeyValues.map(val => sql.lit(val)))})
-    `;
-
-    const result = await deleteQuery.execute(db);
-
     return {
       success: true,
       deletedCount: primaryKeyValues.length,
@@ -658,7 +650,6 @@ export async function updateTableData(
     console.log('UpdateTableData called with changes:', JSON.stringify(changes, null, 2));
 
     // Get table columns to identify primary key
-    const columns = await getTableColumns(schemaName, tableName);
 
     // Query to find the actual primary key column
     const primaryKeyQuery = sql`

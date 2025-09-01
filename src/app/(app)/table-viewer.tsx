@@ -52,7 +52,20 @@ export function TableViewer() {
   >([]);
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
-  const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData, isRefetching: isRefetchingTableData } = useTableData(schema, table, appliedFilters);
+  
+  // Add pagination state
+  const [pagination, setPagination] = React.useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  
+  const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData, isRefetching: isRefetchingTableData } = useTableData(
+    schema, 
+    table, 
+    appliedFilters,
+    pagination.pageSize,
+    pagination.pageIndex * pagination.pageSize
+  );
 
   // State for tracking cell changes
   const [pendingChanges, setPendingChanges] = React.useState<
@@ -225,6 +238,13 @@ export function TableViewer() {
     [router]
   );
 
+  // Refetch data when pagination changes
+  React.useEffect(() => {
+    if (schema && table) {
+      refetchTableData();
+    }
+  }, [pagination.pageIndex, pagination.pageSize, schema, table, refetchTableData]);
+
   // Prepare table data including new row if creating
   const tableDisplayData = React.useMemo(() => {
     const baseData = (tableData?.data as Record<string, unknown>[]) || [];
@@ -391,8 +411,13 @@ export function TableViewer() {
             isEditable={true}
             onCellChange={handleCellChange}
             resetTrigger={resetTrigger}
-            onSelectionChange={setSelectedRows}
-            onTableInstance={setTableInstance}
+                         pagination={pagination}
+             onPaginationChange={(newPagination) => {
+               // Update local pagination state
+               setPagination(newPagination);
+             }}
+             onSelectionChange={setSelectedRows}
+             onTableInstance={setTableInstance}
             customFilter={[
               {
                 filter: RefreshButton,
