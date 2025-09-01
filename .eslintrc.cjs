@@ -32,6 +32,8 @@ const config = {
       },
     ],
     '@typescript-eslint/exhaustive-deps': 'off',
+    'react-hooks/exhaustive-deps': 'off',
+    '@react-hooks/exhaustive-deps': 'off',
     '@typescript-eslint/require-await': 'off',
     '@typescript-eslint/no-misused-promises': [
       'error',

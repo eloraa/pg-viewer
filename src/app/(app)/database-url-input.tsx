@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Database, DatabaseIcon, Key } from 'lucide-react';
+import { Database, DatabaseIcon } from 'lucide-react';
 import { setDatabaseUrl as setDatabaseUrlAction } from '@/app/(app)/database-url-action';
 
 export function DatabaseUrlInput() {

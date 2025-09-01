@@ -71,8 +71,8 @@ export type ExtendedColumnDef<TData> = ColumnDef<TData> & {
 interface CellChange<TData> {
   row: TData;
   column: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   rowIndex: number;
 }
 
@@ -153,7 +153,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   );
 
   const getCellValue = React.useCallback(
-    (rowIndex: number, columnId: string, originalValue: any) => {
+    (rowIndex: number, columnId: string, originalValue: unknown) => {
       const cellKey = getCellKey(rowIndex, columnId);
       const change = pendingChanges.get(cellKey);
       return change ? change.newValue : originalValue;
@@ -172,9 +172,9 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
   }, []);
 
   const handleCellChange = React.useCallback(
-    (rowIndex: number, columnId: string, newValue: any) => {
+    (rowIndex: number, columnId: string, newValue: unknown) => {
       const row = data[rowIndex];
-      const oldValue = (row as any)[columnId];
+      const oldValue = (row as Record<string, unknown>)[columnId];
 
       if (oldValue !== newValue) {
         const cellKey = getCellKey(rowIndex, columnId);
@@ -318,7 +318,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
                   <CustomRow<TData> key={row.id} row={row} customState={customState} onClick={onClick} />
                 ) : (
                   <TableRow key={row.id} data-selected={row.getIsSelected()} className={(row.original as any)?.__isNew ? 'bg-brand-magenta-primary/5' : ''}>
-                    {row.getVisibleCells().map((cell, cellIndex) => {
+                    {row.getVisibleCells().map((cell, _cellIndex) => {
                       const rowIndex = parseInt(row.id);
                       const columnId = cell.column.id;
                       const isSelectColumn = columnId === 'select';

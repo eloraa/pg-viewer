@@ -45,7 +45,7 @@ export function CreateSchemaForm({ className, onSuccess }: CreateSchemaFormProps
       form.reset();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('schemaName', {
@@ -60,7 +60,7 @@ export function CreateSchemaForm({ className, onSuccess }: CreateSchemaFormProps
     toast.promise(createSchemaMutation.mutateAsync(values.schemaName), {
       loading: 'Creating schema...',
       success: 'Schema created successfully',
-      error: (err: any) => {
+      error: (err: unknown) => {
         if (err && typeof err === 'object' && typeof err.message === 'string') {
           return err.message;
         }

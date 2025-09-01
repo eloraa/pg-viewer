@@ -81,7 +81,7 @@ export function CreateTableForm({ schemaName, className, onSuccess }: CreateTabl
       form.reset();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('tableName', {
@@ -96,7 +96,7 @@ export function CreateTableForm({ schemaName, className, onSuccess }: CreateTabl
     toast.promise(createTableMutation.mutateAsync(values), {
       loading: 'Creating table...',
       success: 'Table created successfully',
-      error: (err: any) => {
+      error: (err: unknown) => {
         if (err && typeof err === 'object' && typeof err.message === 'string') {
           return err.message;
         }

@@ -3,7 +3,7 @@ import { Kysely, PostgresDialect } from 'kysely';
 import { cookies } from 'next/headers';
 
 interface Database {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 async function getDatabaseUrl(): Promise<string | undefined> {

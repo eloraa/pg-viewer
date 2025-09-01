@@ -19,7 +19,7 @@ type SidebarProps = {
 
 export const Sidebar = ({ defaultLayout = [25, 75], defaultCollapsed = false, children }: SidebarProps) => {
   const navCollapsedSize = 0;
-  const { isExpanded, expandSidebar, collapseSidebar } = useSidebarStore();
+  const { expandSidebar, collapseSidebar } = useSidebarStore();
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const [panel, setPanel] = React.useState<ImperativePanelHandle | null>(null);
   const [navOpen, setNavOpen] = React.useState(false);

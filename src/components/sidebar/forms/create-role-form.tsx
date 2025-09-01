@@ -57,7 +57,7 @@ export function CreateRoleForm({ className, onSuccess }: CreateRoleFormProps) {
       form.reset();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('roleName', {
@@ -72,7 +72,7 @@ export function CreateRoleForm({ className, onSuccess }: CreateRoleFormProps) {
     toast.promise(createRoleMutation.mutateAsync(values), {
       loading: 'Creating role...',
       success: 'Role created successfully',
-      error: (err: any) => {
+      error: (err: unknown) => {
         if (err && typeof err === 'object' && typeof err.message === 'string') {
           return err.message;
         }

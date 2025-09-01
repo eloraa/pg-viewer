@@ -10,8 +10,8 @@ import { deleteTableRows } from '@/lib/server/actions';
 import { toast } from 'sonner';
 
 interface ActionsProps {
-  data: any[] | null;
-  table: Table<any>;
+  data: Record<string, unknown>[] | null;
+  table: Table<Record<string, unknown>>;
   schema: string;
   tableName: string;
 }
@@ -21,7 +21,7 @@ export const Actions = ({ data, table, schema, tableName }: ActionsProps) => {
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation({
-    mutationFn: (rowData: any[]) => {
+    mutationFn: (rowData: Record<string, unknown>[]) => {
       if (!data || data.length === 0) {
         throw new Error('No rows selected');
       }
@@ -34,7 +34,7 @@ export const Actions = ({ data, table, schema, tableName }: ActionsProps) => {
       setShowDeleteDialog(false);
       table.toggleAllRowsSelected(false);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
       } else {

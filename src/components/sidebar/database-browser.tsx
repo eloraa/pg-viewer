@@ -5,14 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchemas, useTables } from '@/data/schema/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DatabaseIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, ScrollIcon, TableIcon } from 'lucide-react';
+import { DatabaseIcon, LayersIcon, LibraryIcon, PlusIcon, RefreshCcw, ScanEyeIcon, TableIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Spinner } from '../ui/spinner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { DatabaseActionDialogs, type DatabaseAction } from './database-action-dialogs';
 import { SQLConsoleDialog } from './sql-console-dialog';
-import Link from 'next/link';
+
 
 export const DatabaseBrowser = () => {
   const router = useRouter();

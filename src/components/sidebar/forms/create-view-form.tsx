@@ -111,7 +111,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
       setSelectedTable('');
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('viewName', {
@@ -126,7 +126,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
     toast.promise(createViewMutation.mutateAsync(values), {
       loading: 'Creating view...',
       success: 'View created successfully',
-      error: (err: any) => {
+      error: (err: unknown) => {
         if (err && typeof err === 'object' && typeof err.message === 'string') {
           return err.message;
         }
@@ -175,7 +175,7 @@ export function CreateViewForm({ schemaName, className, onSuccess }: CreateViewF
     }
   };
 
-  const insertColumnIntoQuery = (columnName: string) => {
+  const _insertColumnIntoQuery = (columnName: string) => {
     const currentQuery = form.getValues('query');
     const cursorPosition = (document.querySelector('textarea[name="query"]') as HTMLTextAreaElement)?.selectionStart || currentQuery.length;
 

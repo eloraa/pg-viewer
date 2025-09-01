@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Database, Search, CopyIcon, Play, Download, FileText, TableIcon, Code2 } from 'lucide-react';
+import { Database, Search, Play, Download, FileText, TableIcon, Code2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Copy } from '@/components/ui/copy';
 import { EditorReact } from '@/components/ui/editor-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { Badge } from '@/components/ui/badge';
+
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { executeRawSQL } from '@/lib/server/actions';
 import { searchItems } from '@/lib/search';
@@ -20,7 +20,7 @@ import * as monaco from 'monaco-editor';
 
 interface QueryResult {
   success: boolean;
-  data: any[];
+  data: Record<string, unknown>[];
   rowCount: number;
   executionTime: number;
   message?: string;
@@ -41,8 +41,15 @@ interface SchemaColumn {
 interface SchemaTable {
   table_name: string;
   columns: SchemaColumn[];
-  constraints?: any[];
-  indexes?: any[];
+  constraints?: Array<{
+    constraint_name: string;
+    constraint_type: string;
+    definition: string;
+  }>;
+  indexes?: Array<{
+    indexname: string;
+    indexdef: string;
+  }>;
 }
 
 export default function SQLConsolePage() {
@@ -137,7 +144,7 @@ export default function SQLConsolePage() {
         // Group columns by table
         const tableMap = new Map();
 
-        columnsResult.data.forEach((row: any) => {
+        columnsResult.data.forEach((row: Record<string, unknown>) => {
           if (!tableMap.has(row.table_name)) {
             tableMap.set(row.table_name, {
               table_name: row.table_name,
@@ -159,7 +166,7 @@ export default function SQLConsolePage() {
 
         // Add constraints
         if (constraintsResult.success) {
-          constraintsResult.data.forEach((row: any) => {
+          constraintsResult.data.forEach((row: Record<string, unknown>) => {
             const table = tableMap.get(row.table_name);
             if (table) {
               table.constraints.push({
@@ -173,7 +180,7 @@ export default function SQLConsolePage() {
 
         // Add indexes
         if (indexesResult.success) {
-          indexesResult.data.forEach((row: any) => {
+          indexesResult.data.forEach((row: Record<string, unknown>) => {
             const table = tableMap.get(row.table_name);
             if (table) {
               table.indexes.push({
@@ -217,7 +224,7 @@ export default function SQLConsolePage() {
         }
       }
     },
-    [query, schema.length, executeQuery, loadSchema]
+    [schema.length, executeQuery, loadSchema]
   );
 
   const copyColumnName = (columnName: string, tableName: string) => {
@@ -226,7 +233,7 @@ export default function SQLConsolePage() {
     toast.success(`Copied ${fullColumnName}`);
   };
 
-  const insertColumnIntoEditor = (columnName: string, tableName: string) => {
+  const _insertColumnIntoEditor = (columnName: string, tableName: string) => {
     if (editorRef.current) {
       const editor = editorRef.current;
       const selection = editor.getSelection();
@@ -280,7 +287,7 @@ export default function SQLConsolePage() {
 
   // Register SQL completion provider
   const registerSQLCompletions = React.useCallback(
-    (editor: monaco.editor.IStandaloneCodeEditor) => {
+    (_editor: monaco.editor.IStandaloneCodeEditor) => {
       console.log('Registering SQL completions with schema:', schema.length, 'tables');
 
       const completionProvider = monaco.languages.registerCompletionItemProvider('sql', {
@@ -596,9 +603,9 @@ export default function SQLConsolePage() {
                           <div className="p-3 border-b bg-muted/10">
                             <div className="text-xs text-muted-foreground uppercase tracking-wide">CONSTRAINTS</div>
                           </div>
-                          {selectedTableData.constraints.map((constraint: any, index: number) => {
+                          {selectedTableData.constraints.map((constraint: { constraint_name: string; constraint_type: string; definition: string }, index: number) => {
                             // Extract useful information from constraint definition
-                            const getUsefulConstraintInfo = (constraint: any) => {
+                            const getUsefulConstraintInfo = (constraint: { constraint_name: string; constraint_type: string; definition: string }) => {
                               const def = constraint.definition || '';
                               const type = constraint.constraint_type;
 
@@ -654,7 +661,7 @@ export default function SQLConsolePage() {
                           <div className="p-3 border-b bg-muted/10">
                             <div className="text-xs text-muted-foreground uppercase tracking-wide">INDEXES</div>
                           </div>
-                          {selectedTableData.indexes.map((index: any, idx: number) => (
+                          {selectedTableData.indexes.map((index: { indexname: string; indexdef: string }, idx: number) => (
                             <div
                               key={idx}
                               className="px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-muted/20"

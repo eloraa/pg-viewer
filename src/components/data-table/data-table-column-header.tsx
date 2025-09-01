@@ -2,7 +2,7 @@ import { type Column } from '@tanstack/react-table';
 import { cn, getShortDataType } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { ArrowDownIcon, ArrowUpIcon, EyeOff, ChevronsUpDown, ExternalLink } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpIcon, EyeOff, ChevronsUpDown } from 'lucide-react';
 
 interface DataTableColumnHeaderProps<TData> {
   column: Column<TData, unknown>;

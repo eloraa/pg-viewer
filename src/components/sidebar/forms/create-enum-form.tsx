@@ -56,7 +56,7 @@ export function CreateEnumForm({ schemaName, className, onSuccess }: CreateEnumF
       form.reset();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       if (error && typeof error === 'object' && typeof error.message === 'string') {
         toast.error(error.message);
         form.setError('enumName', {
@@ -72,7 +72,7 @@ export function CreateEnumForm({ schemaName, className, onSuccess }: CreateEnumF
     toast.promise(createEnumMutation.mutateAsync({ enumName: values.enumName, values: enumValues }), {
       loading: 'Creating enum...',
       success: 'Enum created successfully',
-      error: (err: any) => {
+      error: (err: unknown) => {
         if (err && typeof err === 'object' && typeof err.message === 'string') {
           return err.message;
         }

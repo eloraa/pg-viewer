@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { BatteryChargingIcon, PanelLeftIcon } from 'lucide-react';
+import { PanelLeftIcon } from 'lucide-react';
 import Link from 'next/link';
 import { getPanelElement, type ImperativePanelHandle } from 'react-resizable-panels';
 import * as React from 'react';

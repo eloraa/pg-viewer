@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { MonacoEditorPopover } from './monaco-editor-popover';
 
 interface EditableCellProps {
-  value: any;
+  value: unknown;
   dataType?: string;
   isActive: boolean;
   isEditing: boolean;
@@ -15,7 +15,7 @@ interface EditableCellProps {
   nullable?: boolean;
   onActivate: () => void;
   onEdit: () => void;
-  onChange: (value: any) => void;
+  onChange: (value: unknown) => void;
   onSave: () => void;
   onCancel: () => void;
   isEditable?: boolean;

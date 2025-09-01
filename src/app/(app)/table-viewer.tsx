@@ -13,7 +13,7 @@ import { XIcon } from 'lucide-react';
 import { updateTableData, insertTableRow } from '@/lib/server/actions';
 import { Actions } from './actions';
 import { CreateNewFilter } from './create-new-filter';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Editor } from '@/components/ui/editor';
 import { useTheme } from '@/store/theme';
 import { useSidebarStore } from '@/store/sidebar';
@@ -33,10 +33,10 @@ export function TableViewer() {
   // State for tracking cell changes
   const [pendingChanges, setPendingChanges] = React.useState<
     Array<{
-      row: any;
+      row: Record<string, unknown>;
       column: string;
-      oldValue: any;
-      newValue: any;
+      oldValue: unknown;
+      newValue: unknown;
       rowIndex: number;
     }>
   >([]);
@@ -44,12 +44,12 @@ export function TableViewer() {
   const [resetTrigger, setResetTrigger] = React.useState(0);
 
   // State for selected rows and table instance
-  const [selectedRows, setSelectedRows] = React.useState<any[]>([]);
-  const [tableInstance, setTableInstance] = React.useState<any>(null);
+  const [selectedRows, setSelectedRows] = React.useState<Record<string, unknown>[]>([]);
+  const [tableInstance, setTableInstance] = React.useState<unknown>(null);
 
   // State for new row creation
   const [isCreatingNew, setIsCreatingNew] = React.useState(false);
-  const [newRowData, setNewRowData] = React.useState<any>(null);
+  const [newRowData, setNewRowData] = React.useState<Record<string, unknown> | null>(null);
 
   // State for error dialog
   const [errorDialog, setErrorDialog] = React.useState<{
@@ -77,10 +77,10 @@ export function TableViewer() {
   const handleCellChange = React.useCallback(
     async (
       changes: Array<{
-        row: any;
+        row: Record<string, unknown>;
         column: string;
-        oldValue: any;
-        newValue: any;
+        oldValue: unknown;
+        newValue: unknown;
         rowIndex: number;
       }>
     ) => {
@@ -100,7 +100,7 @@ export function TableViewer() {
       setIsProcessingChanges(true);
       try {
         // Build row data from pending changes
-        const rowData: Record<string, any> = { ...newRowData };
+        const rowData: Record<string, unknown> = { ...newRowData };
         pendingChanges.forEach(change => {
           rowData[change.column] = change.newValue;
         });
@@ -117,7 +117,7 @@ export function TableViewer() {
           setResetTrigger(prev => prev + 1);
           refetchTableData();
         } else {
-          showError('Error Creating Row', result.error || 'Failed to create new row', (result as any).sqlQuery);
+          showError('Error Creating Row', result.error || 'Failed to create new row', (result as { sqlQuery?: string }).sqlQuery);
         }
       } catch (error) {
         showError('Error Creating Row', error instanceof Error ? error.message : 'Unknown error occurred');
@@ -143,7 +143,7 @@ export function TableViewer() {
         setIsProcessingChanges(false);
       }
     }
-  }, [schema, table, pendingChanges, refetchTableData, isCreatingNew, newRowData]);
+  }, [schema, table, pendingChanges, refetchTableData, isCreatingNew, newRowData, showError]);
 
   // Handler for discarding changes
   const handleDiscardChanges = React.useCallback(() => {
@@ -158,7 +158,7 @@ export function TableViewer() {
     if (!columns) return;
 
     // Create empty new row with default values
-    const emptyRow: any = { __isNew: true };
+    const emptyRow: Record<string, unknown> = { __isNew: true };
     columns.forEach(col => {
       if (col.name !== 'id') {
         // Don't include auto-increment fields
@@ -210,7 +210,7 @@ export function TableViewer() {
         </div>
       ),
       cell: ({ row }) => {
-        const isNewRow = (row.original as any)?.__isNew;
+        const isNewRow = (row.original as Record<string, unknown>)?.__isNew;
 
         if (isNewRow) {
           return (
@@ -242,7 +242,7 @@ export function TableViewer() {
         dataColumns.push({
           accessorKey: column.name,
           header: ({ column: tableColumn }: { column: Column<unknown, unknown> }) => <DataTableColumnHeader column={tableColumn} title={column.name} dataType={column.type} />,
-          cell: ({ row }: { row: any }) => {
+          cell: ({ row }: { row: { getValue: (key: string) => unknown } }) => {
             const value = row.getValue(column.name);
 
             // Handle different data types for display (no foreign key logic here)
@@ -289,7 +289,7 @@ export function TableViewer() {
       });
 
     return [selectColumn, ...dataColumns];
-  }, [columns, handleNavigateToForeignKey]);
+  }, [columns, handleNavigateToForeignKey, handleDiscardChanges]);
 
   if (!schema || !table) {
     return (

@@ -94,7 +94,7 @@ export async function getTableColumns(schemaName: string, tableName: string) {
 
     // Create a map of foreign keys by column name
     const foreignKeysMap = new Map();
-    foreignKeysResult.rows.forEach((row: any) => {
+    foreignKeysResult.rows.forEach((row: Record<string, unknown>) => {
       console.log('Processing FK row:', row);
       
       // Parse referenced table (might include schema and quotes)
@@ -295,7 +295,7 @@ export async function executeRawSQL(sqlQuery: string) {
   }
 }
 
-export async function deleteTableRows(schemaName: string, tableName: string, rowData: Array<{ [key: string]: any }>) {
+export async function deleteTableRows(schemaName: string, tableName: string, rowData: Array<{ [key: string]: unknown }>) {
   try {
     const db = await getDb();
     if (!db) {
@@ -441,7 +441,7 @@ export async function insertTableRow(schemaName: string, tableName: string, rowD
     }
 
     // Build the SQL query for error display with pretty formatting
-    const valuesList = values.map((val: any) => 
+    const valuesList = values.map((val: unknown) => 
       val === null ? 'NULL' : 
       typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : 
       String(val)
@@ -503,10 +503,10 @@ export async function updateTableData(
   schemaName: string, 
   tableName: string, 
   changes: Array<{
-    row: any;
+    row: Record<string, unknown>;
     column: string;
-    oldValue: any;
-    newValue: any;
+    oldValue: unknown;
+    newValue: unknown;
     rowIndex: number;
   }>
 ) {

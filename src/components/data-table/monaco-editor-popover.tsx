@@ -4,15 +4,15 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Editor, getEditorLanguage, type EditorLanguage } from '@/components/ui/editor';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { AlignJustifyIcon, Edit3 } from 'lucide-react';
+import { AlignJustifyIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/store/theme';
 
 interface MonacoEditorPopoverProps {
-  value: any;
+  value: unknown;
   dataType?: string;
   nullable?: boolean;
-  onSave: (value: any) => void;
+  onSave: (value: unknown) => void;
   onCancel: () => void;
   trigger?: React.ReactNode;
   children?: React.ReactNode;
@@ -66,7 +66,7 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
   }, [isOpen, editorValue]);
 
   const handleSave = () => {
-    let processedValue: any = editorValue;
+    let processedValue: unknown = editorValue;
 
     // Try to parse JSON if it looks like JSON
     if (language === 'json' && editorValue.trim()) {

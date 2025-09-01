@@ -14,7 +14,7 @@ import { ExternalLink } from 'lucide-react';
 
 interface QueryResult {
   success: boolean;
-  data: any[];
+  data: Record<string, unknown>[];
   rowCount: number;
   executionTime: number;
   message?: string;
