@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { RefreshButton } from '@/components/data-table/refresh-table';
 import { FilterButton } from './filter-button';
 import { FilterPanel } from './filter-panel';
+import { scoreMatch } from '@/lib/search';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
@@ -52,20 +53,20 @@ export function TableViewer() {
   >([]);
 
   const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
-  
+
   // Add pagination state
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 10,
   });
-  
-  const { data: tableData, isLoading: dataLoading, error, refetch: refetchTableData, isRefetching: isRefetchingTableData } = useTableData(
-    schema, 
-    table, 
-    appliedFilters,
-    pagination.pageSize,
-    pagination.pageIndex * pagination.pageSize
-  );
+
+  const {
+    data: tableData,
+    isLoading: dataLoading,
+    error,
+    refetch: refetchTableData,
+    isRefetching: isRefetchingTableData,
+  } = useTableData(schema, table, appliedFilters, pagination.pageSize, pagination.pageIndex * pagination.pageSize);
 
   // State for tracking cell changes
   const [pendingChanges, setPendingChanges] = React.useState<
@@ -137,13 +138,13 @@ export function TableViewer() {
       schema,
       table,
     });
-    
+
     // Debug: Check if any pending changes have __isNew marker
     pendingChanges.forEach((change, index) => {
       console.log(`Change ${index}:`, {
         hasIsNew: '__isNew' in change.row,
         rowKeys: Object.keys(change.row),
-        rowData: change.row
+        rowData: change.row,
       });
     });
 
@@ -238,14 +239,6 @@ export function TableViewer() {
     [router]
   );
 
-  // Refetch data when pagination changes
-  React.useEffect(() => {
-    if (schema && table) {
-      refetchTableData();
-    }
-  }, [pagination.pageIndex, pagination.pageSize, schema, table, refetchTableData]);
-
-  // Prepare table data including new row if creating
   const tableDisplayData = React.useMemo(() => {
     const baseData = (tableData?.data as Record<string, unknown>[]) || [];
     if (isCreatingNew && newRowData) {
@@ -253,6 +246,94 @@ export function TableViewer() {
     }
     return baseData;
   }, [tableData?.data, isCreatingNew, newRowData]);
+
+  const createCustomFilterFn = (dataType: string) => {
+    return (row: any, columnId: string, filterValue: string) => {
+      if (!filterValue) return true;
+      
+      const value = row.getValue(columnId);
+      const searchTerm = filterValue.toLowerCase().trim();
+      
+      // Handle null/undefined values with partial matching
+      if (value === null || value === undefined) {
+        // Check if search term is related to null (partial matching)
+        const nullKeywords = ['null', 'nul', 'nu', 'n', 'empty', 'empt', 'emp', 'em', 'e', 'none', 'non', 'no'];
+        return nullKeywords.some(keyword => keyword.includes(searchTerm) || searchTerm.includes(keyword));
+      }
+      
+      // Convert value to string for searching
+      let searchableValue: string;
+      
+      // Handle different data types
+      switch (dataType) {
+        case 'boolean':
+          searchableValue = String(value).toLowerCase();
+          // Allow partial matching for boolean values
+          if (searchTerm === 't' || searchTerm === 'tr' || searchTerm === 'tru') {
+            return searchableValue === 'true';
+          }
+          if (searchTerm === 'f' || searchTerm === 'fa' || searchTerm === 'fal' || searchTerm === 'fals') {
+            return searchableValue === 'false';
+          }
+          return searchableValue.includes(searchTerm);
+          
+        case 'integer':
+        case 'bigint':
+        case 'numeric':
+        case 'decimal':
+        case 'real':
+        case 'double precision':
+          searchableValue = String(value).toLowerCase();
+          return searchableValue.includes(searchTerm);
+          
+        case 'timestamp with time zone':
+        case 'timestamp without time zone':
+        case 'timestamptz':
+        case 'timestamp':
+        case 'date':
+        case 'time':
+          try {
+            const dateValue = new Date(value);
+            if (isNaN(dateValue.getTime())) {
+              searchableValue = String(value).toLowerCase();
+            } else {
+              // Search in multiple date formats
+              const isoString = dateValue.toISOString().toLowerCase();
+              const localString = dateValue.toLocaleString().toLowerCase();
+              const dateString = dateValue.toDateString().toLowerCase();
+              searchableValue = `${isoString} ${localString} ${dateString}`;
+            }
+          } catch {
+            searchableValue = String(value).toLowerCase();
+          }
+          return searchableValue.includes(searchTerm);
+          
+        case 'json':
+        case 'jsonb':
+          try {
+            const jsonString = JSON.stringify(value).toLowerCase();
+            searchableValue = jsonString;
+          } catch {
+            searchableValue = String(value).toLowerCase();
+          }
+          return searchableValue.includes(searchTerm);
+          
+        default:
+          // For text types and others, use fuzzy matching for better results
+          searchableValue = String(value).toLowerCase();
+          
+          // First try simple includes for exact matches (fastest)
+          if (searchableValue.includes(searchTerm)) {
+            return true;
+          }
+          
+          // Then use advanced fuzzy matching for partial matches
+          const fuzzyScore = scoreMatch(searchableValue, searchTerm);
+          // Use a lower threshold for fuzzy matching to be more permissive
+          return fuzzyScore >= 0.1;
+      }
+    };
+  };
 
   // Generate columns for the data table
   const dataColumns = React.useMemo(() => {
@@ -298,7 +379,7 @@ export function TableViewer() {
     const dataColumns: ExtendedColumnDef<Record<string, unknown>>[] = [];
 
     columns
-      .filter(column => typeof column.name === 'string' && column.name.trim() !== '')
+      .filter(column => typeof column.name === 'string' && column.name.trim() !== '' && column.name !== 'ctid')
       .forEach(column => {
         // Add the regular data column
         dataColumns.push({
@@ -322,6 +403,7 @@ export function TableViewer() {
 
             return <span className="break-all truncate">{String(value)}</span>;
           },
+          filterFn: createCustomFilterFn(column.type as string),
           meta: {
             type: column.type,
             nullable: column.nullable,
@@ -377,22 +459,6 @@ export function TableViewer() {
     );
   }
 
-  if (columnsLoading || dataLoading) {
-    return (
-      <div className="space-y-4 p-6">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="flex-1 overflow-hidden py-1 h-full flex">
@@ -403,17 +469,23 @@ export function TableViewer() {
             placeholder={`Search in ${table}...`}
             toolbarClassName={cn(isExpanded ? 'md:pr-14' : 'md:pl-4 md:pr-4.5')}
             search={dataColumns
+              .filter(col => 
+                col.accessorKey && 
+                col.accessorKey.trim() !== '' && 
+                !col.accessorKey.startsWith('fk_') && // Exclude foreign key columns
+                col.accessorKey !== 'ctid' // Exclude ctid column from search
+              )
               .map(col => ({
-                label: col.accessorKey || 'Unknown',
-                value: col.accessorKey || '',
-              }))
-              .filter(item => item.value !== '')}
+                label: col.accessorKey!,
+                value: col.accessorKey!,
+              }))}
             isEditable={true}
+            isLoading={isRefetchingTableData || dataLoading}
             onCellChange={handleCellChange}
             resetTrigger={resetTrigger}
             pagination={pagination}
             pageCount={tableData ? Math.ceil(tableData.total / pagination.pageSize) : 0}
-            onPaginationChange={(newPagination) => {
+            onPaginationChange={newPagination => {
               // Update local pagination state
               setPagination(newPagination);
             }}

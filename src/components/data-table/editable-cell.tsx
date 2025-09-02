@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { MonacoEditorPopover } from './monaco-editor-popover';
+import { DateTimeInput } from '../ui/date-time-input';
 
 interface EditableCellProps {
   value: unknown;
@@ -86,6 +87,11 @@ export function EditableCell({
     onSave();
   };
 
+  const handleInputClick = (e: React.MouseEvent) => {
+    // Prevent clicks on input from bubbling up to parent cell
+    e.stopPropagation();
+  };
+
   const handleInputBlur = () => {
     // Always trigger onChange to ensure the current edit value is captured
     // This is especially important for new rows where we need to track empty values
@@ -115,6 +121,29 @@ export function EditableCell({
       return <Checkbox checked={!!editValue} onCheckedChange={handleCheckboxChange} className="mt-1" />;
     }
 
+    if (dataType?.includes('date') || dataType?.includes('timestamp')) {
+      const isDateTime = dataType?.includes('timestamp') || dataType?.includes('datetime');
+      const currentDate = editValue ? new Date(String(editValue)) : undefined;
+
+      const isValidDate = currentDate && !isNaN(currentDate.getTime());
+
+      return (
+        <DateTimeInput
+          date={isValidDate ? currentDate : undefined}
+          onSelect={date => {
+            console.log(date);
+
+            setEditValue(date.toISOString());
+            onChange(date.toISOString());
+            onSave();
+          }}
+          hideTime={!isDateTime}
+          autoSave={false}
+          className="!size-full text-sm !border-0 shadow-none outline-none focus-visible:!ring-0 !p-1 !bg-transparent font-mono rounded-none"
+        />
+      );
+    }
+
     // Determine input type based on data type
     let inputType = 'text';
     if (dataType?.includes('int') || dataType?.includes('numeric') || dataType?.includes('decimal')) {
@@ -132,6 +161,7 @@ export function EditableCell({
         value={String(editValue || '')}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
+        onClick={handleInputClick}
         onBlur={handleInputBlur}
         className="!size-full text-sm !border-0 shadow-none outline-none focus-visible:!ring-0 !p-2 !bg-transparent font-mono rounded-none"
       />
@@ -145,13 +175,7 @@ export function EditableCell({
   return (
     <MonacoEditorPopover
       value={value}
-      defaultValue={
-        value === null || value === undefined 
-          ? '' 
-          : typeof value === 'object' 
-            ? JSON.stringify(value, null, 2)
-            : String(value)
-      }
+      defaultValue={value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
       dataType={dataType}
       nullable={nullable}
       onSave={newValue => {

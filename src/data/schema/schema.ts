@@ -66,5 +66,7 @@ export const useTableData = (
     queryFn: () => getTableData(schemaName!, tableName!, limit, offset, filters, sortColumn, sortOrder),
     enabled: !!schemaName && !!tableName,
     staleTime: 2 * 60 * 1000, // 2 minutes (shorter for data)
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching new data
+    refetchOnWindowFocus: false, // Prevent unnecessary refetches
   });
 };

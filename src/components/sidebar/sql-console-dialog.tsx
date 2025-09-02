@@ -64,7 +64,7 @@ export function SQLConsoleDialog() {
     if (!result?.data?.length) return '';
 
     const columns = Object.keys(result.data[0]);
-    
+
     // Calculate column widths for better alignment
     const columnWidths = columns.map(col => {
       const headerLength = col.length;
@@ -78,13 +78,13 @@ export function SQLConsoleDialog() {
       );
       return Math.max(headerLength, maxDataLength, 3); // Minimum width of 3 for separator
     });
-    
+
     // Create header row with proper spacing
     const headerRow = '| ' + columns.map((col, i) => col.padEnd(columnWidths[i])).join(' | ') + ' |';
-    
+
     // Create separator row with proper alignment
     const separatorRow = '| ' + columnWidths.map(width => '-'.repeat(width)).join(' | ') + ' |';
-    
+
     // Create data rows with proper spacing
     const dataRows = result.data.map(row => {
       const values = columns.map((col, i) => {
@@ -101,7 +101,7 @@ export function SQLConsoleDialog() {
       });
       return '| ' + values.join(' | ') + ' |';
     });
-    
+
     return [headerRow, separatorRow, ...dataRows].join('\n');
   };
 
@@ -132,20 +132,14 @@ export function SQLConsoleDialog() {
         <div className="flex-1 space-y-4 overflow-hidden flex flex-col">
           <div className="space-y-4">
             <div onKeyDown={handleKeyDown}>
-              <EditorReact
-                value={query}
-                onChange={setQuery}
-                language="sql"
-                height={400}
-                className="border rounded-md"
-              />
+              <EditorReact value={query} onChange={setQuery} language="sql" height={400} className="border rounded-md" />
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={executeQuery} disabled={isExecuting || !query.trim()} className="flex items-center gap-2" size="sm">
                 <Play className="h-4 w-4" />
                 {isExecuting ? 'Executing...' : 'Execute Query'}
               </Button>
-              <Link href="/sql-console">
+              <Link href="/sql-console" onClick={() => setOpen(false)}>
                 <Button variant="outline" size="sm" className="flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
                   Advanced Console

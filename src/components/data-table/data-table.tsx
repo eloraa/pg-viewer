@@ -21,7 +21,6 @@ import {
 import { DataTableToolbar } from './data-table-toolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type LucideIcon } from 'lucide-react';
-import { DataTableSkeleton } from './data-table-skeleton';
 import { EditableCell } from './editable-cell';
 
 interface CustomRowProps<TData> {
@@ -185,7 +184,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         oldValue,
         rowData: row,
         hasIsNew: '__isNew' in (row as Record<string, unknown>),
-        dataLength: data.length
+        dataLength: data.length,
       });
 
       if (oldValue !== newValue) {
@@ -291,8 +290,6 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
     }
   }, [table, onTableInstance]);
 
-  if (isLoading) return <DataTableSkeleton />;
-
   return (
     <>
       <DataTableToolbar<TData>
@@ -307,6 +304,7 @@ export function DataTable<TData, TColumns extends ExtendedColumnDef<TData>[] = E
         selectActions={selectActions}
         pageSizes={pageSizes}
         className={toolbarClassName}
+        isLoading={isLoading}
       />
       {appendNodeToToolbar && appendNodeToToolbar.bottom}
       <div>

@@ -215,15 +215,31 @@ export async function getTableData(
       whereClause = sql` WHERE ${sql.join(conditions, sql``)}`;
     }
 
-    // Build ORDER BY clause if sortColumn is provided
+    // Build ORDER BY clause - use provided sortColumn or default to first column
     let orderByClause = sql``;
     if (sortColumn) {
       console.log(`Sorting by column: ${sortColumn} ${sortOrder}`);
       orderByClause = sql` ORDER BY ${sql.id(sortColumn)} ${sql.raw(sortOrder)}`;
+    } else {
+      const firstColumnQuery = sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = ${sql.lit(schemaName)} 
+          AND table_name = ${sql.lit(tableName)}
+        ORDER BY ordinal_position ASC 
+        LIMIT 1
+      `;
+      const firstColumnResult = await firstColumnQuery.execute(db);
+      const firstColumn = (firstColumnResult.rows[0] as { column_name: string })?.column_name;
+      
+      if (firstColumn) {
+        console.log(`Default sorting by first column: ${firstColumn} ASC`);
+        orderByClause = sql` ORDER BY ${sql.id(firstColumn)} ASC`;
+      }
     }
 
-    // Build the main query
-    const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause}${orderByClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+    // Build the main query - include ctid for row identification
+    const dataQuery = sql`SELECT *, ctid FROM ${sql.id(schemaName, tableName)}${whereClause}${orderByClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
     const data = await dataQuery.execute(db);
 
     // Get total count for pagination with filters
@@ -757,6 +773,8 @@ export async function getSchemaBrowserTableDetails(schemaName: string, tableName
   }
 }
 
+// ctid is PostgreSQL's physical row identifier - perfect for row identification
+
 export async function updateTableData(
   schemaName: string,
   tableName: string,
@@ -766,7 +784,9 @@ export async function updateTableData(
     oldValue: unknown;
     newValue: unknown;
     rowIndex: number;
-  }>
+  }>,
+  sortColumn?: string,
+  sortOrder: 'ASC' | 'DESC' = 'ASC'
 ) {
   try {
     const db = await getDb();
@@ -776,7 +796,7 @@ export async function updateTableData(
 
     console.log('UpdateTableData called with changes:', JSON.stringify(changes, null, 2));
 
-    // Group changes by row index to handle duplicate primary keys
+    // Group changes by row index
     const changesByRowIndex = new Map<number, Array<{ column: string; newValue: unknown }>>();
     
     changes.forEach(change => {
@@ -794,27 +814,36 @@ export async function updateTableData(
 
     console.log('Changes grouped by row index:', Array.from(changesByRowIndex.entries()));
 
-    // Execute updates for each row using row position instead of primary key
+    // Execute updates for each row using ctid (PostgreSQL physical row identifier)
     const updatePromises = Array.from(changesByRowIndex.entries()).map(async ([rowIndex, rowChanges]) => {
+      // Get the original row data to extract ctid
+      const originalRow = changes.find(change => change.rowIndex === rowIndex)?.row;
+      if (!originalRow) {
+        console.error('Could not find original row data for row index:', rowIndex);
+        return;
+      }
+
+      // Extract ctid from the original row
+      const ctid = originalRow.ctid;
+      if (!ctid) {
+        console.error('No ctid found in original row data:', originalRow);
+        return;
+      }
+
       // Build SET clause for all columns being updated in this row
       const setClauses = rowChanges.map(change => 
         sql`${sql.id(change.column)} = ${sql.lit(change.newValue)}`
       );
 
-      // Use a subquery with LIMIT and OFFSET to target the exact row by position
-      // This avoids issues with duplicate primary keys
+      // Use ctid for precise row identification
       const updateQuery = sql`
         UPDATE ${sql.id(schemaName, tableName)}
         SET ${sql.join(setClauses, sql`, `)}
-        WHERE ctid = (
-          SELECT ctid 
-          FROM ${sql.id(schemaName, tableName)}
-          ORDER BY ctid
-          LIMIT 1 OFFSET ${sql.lit(rowIndex)}
-        )
+        WHERE ctid = ${sql.lit(ctid)}
       `;
 
       console.log('Executing UPDATE for row index:', rowIndex, 'with changes:', rowChanges);
+      console.log('Using ctid:', ctid);
       console.log('Generated SQL query:', updateQuery.compile(db).sql);
       console.log('Query parameters:', updateQuery.compile(db).parameters);
       

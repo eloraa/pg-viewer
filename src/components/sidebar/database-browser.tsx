@@ -18,8 +18,10 @@ export const DatabaseBrowser = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [selectedSchema, setSelectedSchema] = React.useState<string | null>(searchParams.get('schema'));
-  const [selectedTable, setSelectedTable] = React.useState<string | null>(searchParams.get('table'));
+  // Get current values from search params
+  const selectedSchema = searchParams.get('schema');
+  const selectedTable = searchParams.get('table');
+  
   const [dialogAction, setDialogAction] = React.useState<DatabaseAction | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
@@ -52,7 +54,6 @@ export const DatabaseBrowser = () => {
   React.useEffect(() => {
     if (schemas && schemas.length > 0 && !selectedSchema) {
       const firstSchema = schemas[0];
-      setSelectedSchema(firstSchema);
       updateSearchParams(firstSchema, null);
     }
   }, [schemas, selectedSchema, updateSearchParams]);
@@ -61,19 +62,15 @@ export const DatabaseBrowser = () => {
   React.useEffect(() => {
     if (tables && tables.length > 0 && selectedSchema && !selectedTable) {
       const firstTable = tables[0].name as string;
-      setSelectedTable(firstTable);
       updateSearchParams(selectedSchema, firstTable);
     }
   }, [tables, selectedSchema, selectedTable, updateSearchParams]);
 
   const handleSchemaChange = (value: string) => {
-    setSelectedSchema(value);
-    setSelectedTable(null);
     updateSearchParams(value, null);
   };
 
   const handleTableClick = (tableName: string) => {
-    setSelectedTable(tableName);
     updateSearchParams(selectedSchema, tableName);
   };
 

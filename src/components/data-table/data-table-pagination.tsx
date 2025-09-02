@@ -4,13 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChevronRightIcon, ChevronLeftIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { Spinner } from '../ui/spinner';
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   pageSizes?: number[];
+  isLoading?: boolean;
 }
 
-export function DataTablePagination<TData>({ table }: DataTablePaginationProps<TData>) {
+export function DataTablePagination<TData>({ table, isLoading }: DataTablePaginationProps<TData>) {
   const [pageSizeInput, setPageSizeInput] = useState(table.getState().pagination.pageSize.toString());
   const [offsetInput, setOffsetInput] = useState((table.getState().pagination.pageIndex * table.getState().pagination.pageSize).toString());
 
@@ -27,7 +29,14 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
     <TooltipProvider>
       <div className="flex items-center justify-center space-x-2">
         <div className="flex items-center text-xs font-mono font-medium text-muted-foreground">
-          {table.getRowModel().rows.length} of {table.getPageCount() * table.getState().pagination.pageSize} rows | {table.getState().pagination.pageSize * table.getState().pagination.pageIndex + table.getRowModel().rows.length > 0 ? '803ms' : '0ms'}
+          {isLoading ? (
+            <Spinner className="size-4" />
+          ) : (
+            <>
+              {table.getRowModel().rows.length} of {table.getPageCount() * table.getState().pagination.pageSize} rows |{' '}
+              {table.getState().pagination.pageSize * table.getState().pagination.pageIndex + table.getRowModel().rows.length > 0 ? '803ms' : '0ms'}
+            </>
+          )}
         </div>
         <div className="flex items-center">
           <Button variant="outline" className="h-8 w-8 p-0 rounded-r-none" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
@@ -88,7 +97,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
                 type="text"
                 inputMode="numeric"
                 value={offsetInput}
-                placeholder='OFFSET'
+                placeholder="OFFSET"
                 onChange={e => {
                   const value = e.target.value;
                   // Only allow digits and empty string

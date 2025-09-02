@@ -28,7 +28,28 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
           .filter((column: Column<TData, unknown>) => typeof column.accessorFn !== 'undefined' && column.getCanHide())
           .map((column: Column<TData, unknown>) => {
             const header = column.columnDef.header;
-            const title = typeof header === 'function' ? header({ column, header: undefined, table: undefined } as unknown as HeaderContext<TData, unknown>)?.props?.title : header || column.id;
+            let title = column.id;
+            
+            // Try to extract title from header function
+            if (typeof header === 'function') {
+              try {
+                const headerElement = header({ column, header: undefined, table: undefined } as unknown as HeaderContext<TData, unknown>);
+                // Check if it's a React element with props.title (for DataTableColumnHeader)
+                if (headerElement && typeof headerElement === 'object' && 'props' in headerElement) {
+                  if (headerElement.props?.title) {
+                    title = headerElement.props.title;
+                  } else if (headerElement.props?.children) {
+                    // For foreign key columns that use <span>{referencedTable}</span>
+                    title = headerElement.props.children;
+                  }
+                }
+              } catch (error) {
+                // Fallback to column id if extraction fails
+                console.warn('Failed to extract title from header:', error);
+              }
+            } else if (typeof header === 'string') {
+              title = header;
+            }
 
             return (
               <DropdownMenuCheckboxItem key={column.id} className="capitalize" checked={column.getIsVisible()} onCheckedChange={value => column.toggleVisibility(!!value)}>

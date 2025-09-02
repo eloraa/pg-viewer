@@ -53,6 +53,7 @@ interface DataTableToolbarProps<TData> {
   selectActions?: React.ReactNode | React.ReactNode[];
   pageSizes?: number[];
   className?: string;
+  isLoading?: boolean;
 }
 
 export function DataTableToolbar<TData>({
@@ -67,6 +68,7 @@ export function DataTableToolbar<TData>({
   selectActions,
   pageSizes,
   className,
+  isLoading,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0;
   const selectedRows = table.getSelectedRowModel().rows.length;
@@ -173,7 +175,7 @@ export function DataTableToolbar<TData>({
         <div className="flex items-center gap-2 flex-col md:flex-row">
           {selectedRows > 0 && isDesktop && <>{Array.isArray(selectActions) ? selectActions.map((action, index) => <div key={index}>{action}</div>) : selectActions}</>}
 
-          <DataTablePagination table={table} pageSizes={pageSizes} />
+          <DataTablePagination table={table} pageSizes={pageSizes} isLoading={isLoading} />
           <DataTableViewOptions table={table} />
         </div>
       </div>
