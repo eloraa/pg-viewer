@@ -10,8 +10,6 @@ export async function getSchemas() {
       throw new Error('No database connection available');
     }
 
-    
-
     const result = await sql<{ schema_name: string }>`
       SELECT schema_name 
       FROM information_schema.schemata 
@@ -145,9 +143,9 @@ export async function getTableColumns(schemaName: string, tableName: string) {
 }
 
 export async function getTableData(
-  schemaName: string, 
-  tableName: string, 
-  limit: number = 100, 
+  schemaName: string,
+  tableName: string,
+  limit: number = 100,
   offset: number = 0,
   filters?: Array<{
     connector: 'where' | 'and' | 'or';
@@ -170,7 +168,7 @@ export async function getTableData(
       const conditions = filters.map((filter, index) => {
         const column = sql.id(filter.column);
         const value = sql.lit(filter.value);
-        
+
         let condition;
         switch (filter.operator) {
           case 'equals':
@@ -231,7 +229,7 @@ export async function getTableData(
       `;
       const firstColumnResult = await firstColumnQuery.execute(db);
       const firstColumn = (firstColumnResult.rows[0] as { column_name: string })?.column_name;
-      
+
       if (firstColumn) {
         console.log(`Default sorting by first column: ${firstColumn} ASC`);
         orderByClause = sql` ORDER BY ${sql.id(firstColumn)} ASC`;
@@ -702,9 +700,9 @@ export async function getSchemaBrowserTableDetails(schemaName: string, tableName
     }
 
     // Get only essential column information for schema browser
-    const columnsResult = await sql<{ 
-      column_name: string; 
-      data_type: string; 
+    const columnsResult = await sql<{
+      column_name: string;
+      data_type: string;
       is_nullable: string;
       column_default: string | null;
     }>`
@@ -784,9 +782,7 @@ export async function updateTableData(
     oldValue: unknown;
     newValue: unknown;
     rowIndex: number;
-  }>,
-  sortColumn?: string,
-  sortOrder: 'ASC' | 'DESC' = 'ASC'
+  }>
 ) {
   try {
     const db = await getDb();
@@ -798,17 +794,17 @@ export async function updateTableData(
 
     // Group changes by row index
     const changesByRowIndex = new Map<number, Array<{ column: string; newValue: unknown }>>();
-    
+
     changes.forEach(change => {
       const rowIndex = change.rowIndex;
       console.log('Processing change for row index:', rowIndex, 'column:', change.column);
-      
+
       if (!changesByRowIndex.has(rowIndex)) {
         changesByRowIndex.set(rowIndex, []);
       }
       changesByRowIndex.get(rowIndex)!.push({
         column: change.column,
-        newValue: change.newValue
+        newValue: change.newValue,
       });
     });
 
@@ -831,9 +827,7 @@ export async function updateTableData(
       }
 
       // Build SET clause for all columns being updated in this row
-      const setClauses = rowChanges.map(change => 
-        sql`${sql.id(change.column)} = ${sql.lit(change.newValue)}`
-      );
+      const setClauses = rowChanges.map(change => sql`${sql.id(change.column)} = ${sql.lit(change.newValue)}`);
 
       // Use ctid for precise row identification
       const updateQuery = sql`
@@ -846,7 +840,7 @@ export async function updateTableData(
       console.log('Using ctid:', ctid);
       console.log('Generated SQL query:', updateQuery.compile(db).sql);
       console.log('Query parameters:', updateQuery.compile(db).parameters);
-      
+
       const result = await updateQuery.execute(db);
       console.log('UPDATE result:', result);
       return result;

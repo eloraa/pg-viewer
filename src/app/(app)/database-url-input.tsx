@@ -48,7 +48,7 @@ export function DatabaseUrlInput() {
       }
 
       return null;
-    } catch (error) {
+    } catch {
       return 'Invalid URL format';
     }
   };

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,7 +58,7 @@ export function DateTimeInput({ date, onSelect, className, hideTime = false, aut
     if (!autoSave && day && month && year) {
       const hourValue = hideTime ? '00' : hour || '00';
       const minuteValue = hideTime ? '00' : minute || '00';
-      
+
       // Validate and create date directly for manual save
       if (day.length === 2 && month.length === 2 && year.length === 4) {
         // Validate day based on month and year

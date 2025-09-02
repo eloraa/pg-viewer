@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTableColumns, useTableData } from '@/data/schema/schema';
 import { DataTable, type ExtendedColumnDef } from '@/components/data-table/data-table';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,7 @@ export function TableViewer() {
     }>
   >([]);
 
-  const { data: columns, isLoading: columnsLoading } = useTableColumns(schema, table);
+  const { data: columns } = useTableColumns(schema, table);
 
   // Add pagination state
   const [pagination, setPagination] = React.useState({
@@ -248,7 +248,7 @@ export function TableViewer() {
   }, [tableData?.data, isCreatingNew, newRowData]);
 
   const createCustomFilterFn = (dataType: string) => {
-    return (row: any, columnId: string, filterValue: string) => {
+    return (row: { getValue: (columnId: string) => unknown }, columnId: string, filterValue: string) => {
       if (!filterValue) return true;
       
       const value = row.getValue(columnId);
@@ -293,15 +293,20 @@ export function TableViewer() {
         case 'date':
         case 'time':
           try {
-            const dateValue = new Date(value);
-            if (isNaN(dateValue.getTime())) {
-              searchableValue = String(value).toLowerCase();
+            // Ensure value is a valid type for Date constructor
+            if (value && (typeof value === 'string' || typeof value === 'number' || value instanceof Date)) {
+              const dateValue = new Date(value);
+              if (isNaN(dateValue.getTime())) {
+                searchableValue = String(value).toLowerCase();
+              } else {
+                // Search in multiple date formats
+                const isoString = dateValue.toISOString().toLowerCase();
+                const localString = dateValue.toLocaleString().toLowerCase();
+                const dateString = dateValue.toDateString().toLowerCase();
+                searchableValue = `${isoString} ${localString} ${dateString}`;
+              }
             } else {
-              // Search in multiple date formats
-              const isoString = dateValue.toISOString().toLowerCase();
-              const localString = dateValue.toLocaleString().toLowerCase();
-              const dateString = dateValue.toDateString().toLowerCase();
-              searchableValue = `${isoString} ${localString} ${dateString}`;
+              searchableValue = String(value).toLowerCase();
             }
           } catch {
             searchableValue = String(value).toLowerCase();

@@ -16,14 +16,19 @@ export function DataTablePagination<TData>({ table, isLoading }: DataTablePagina
   const [pageSizeInput, setPageSizeInput] = useState(table.getState().pagination.pageSize.toString());
   const [offsetInput, setOffsetInput] = useState((table.getState().pagination.pageIndex * table.getState().pagination.pageSize).toString());
 
+  // Extract complex expressions to separate variables for dependency tracking
+  const pageSize = table.getState().pagination.pageSize;
+  const pageIndex = table.getState().pagination.pageIndex;
+  const offset = pageIndex * pageSize;
+
   // Update local state when table state changes
   useEffect(() => {
-    setPageSizeInput(table.getState().pagination.pageSize.toString());
-  }, [table.getState().pagination.pageSize]);
+    setPageSizeInput(pageSize.toString());
+  }, [table, pageSize]);
 
   useEffect(() => {
-    setOffsetInput((table.getState().pagination.pageIndex * table.getState().pagination.pageSize).toString());
-  }, [table.getState().pagination.pageIndex, table.getState().pagination.pageSize]);
+    setOffsetInput(offset.toString());
+  }, [table, pageIndex, pageSize, offset]);
 
   return (
     <TooltipProvider>
