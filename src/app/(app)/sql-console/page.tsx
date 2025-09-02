@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
-import { executeRawSQL, getSchemas, getTables, getTableColumns, getTableConstraints, getTableIndexes } from '@/lib/server/actions';
+import { executeRawSQL, getSchemas, getSchemaBrowserTables, getSchemaBrowserTableDetails } from '@/lib/server/actions';
 import { searchItems } from '@/lib/search';
 import * as monaco from 'monaco-editor';
 
@@ -30,12 +30,12 @@ interface QueryResult {
 interface SchemaColumn {
   column_name: string;
   data_type: string;
-  is_nullable: string;
+  is_nullable: string | boolean;
   column_default: string | null;
   table_name: string;
   is_primary_key?: boolean;
-  foreign_table_name?: string;
-  foreign_column_name?: string;
+  foreign_table_name?: string | null;
+  foreign_column_name?: string | null;
 }
 
 interface SchemaTable {
@@ -60,6 +60,7 @@ export default function SQLConsolePage() {
   const [schemaOpen, setSchemaOpen] = React.useState(false);
   const [schema, setSchema] = React.useState<SchemaTable[]>([]);
   const [isLoadingSchema, setIsLoadingSchema] = React.useState(false);
+  const [schemaLoadProgress, setSchemaLoadProgress] = React.useState({ current: 0, total: 0 });
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedTable, setSelectedTable] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'table' | 'code'>('table');
@@ -255,35 +256,36 @@ export default function SQLConsolePage() {
     try {
       // Get all schemas first
       const schemas = await getSchemas();
-      const allTables: SchemaTable[] = [];
+      
+      // Get all tables for all schemas in parallel
+      const tablePromises = schemas.map(schemaName => getSchemaBrowserTables(schemaName));
+      const allTableResults = await Promise.all(tablePromises);
+      
+      // Flatten all tables with their schema names
+      const allTablesWithSchema: Array<{ schemaName: string; table: { name: string; type: string } }> = [];
+      schemas.forEach((schemaName, index) => {
+        allTableResults[index].forEach((table: { name: string; type: string }) => {
+          allTablesWithSchema.push({ schemaName, table });
+        });
+      });
 
-      // For each schema, get its tables and columns
-      for (const schemaName of schemas) {
-        const tables = await getTables(schemaName);
+      // Limit to first 50 tables to avoid overwhelming the system
+      const limitedTables = allTablesWithSchema.slice(0, 50);
+      
+      // Set progress state
+      setSchemaLoadProgress({ current: 0, total: limitedTables.length });
+      
+      // For initial load, just get basic table info without detailed columns/constraints
+      const basicTables: SchemaTable[] = limitedTables.map(({ schemaName, table }) => ({
+        table_name: table.name,
+        schema_name: schemaName,
+        columns: [],
+        constraints: [],
+        indexes: [],
+      }));
 
-        for (const table of tables) {
-          const [columns, constraints, indexes] = await Promise.all([getTableColumns(schemaName, table.name), getTableConstraints(schemaName, table.name), getTableIndexes(schemaName, table.name)]);
-
-          allTables.push({
-            table_name: table.name,
-            schema_name: schemaName,
-            columns: columns.map(col => ({
-              column_name: col.name,
-              data_type: col.type,
-              is_nullable: col.nullable ? 'YES' : 'NO',
-              column_default: null,
-              table_name: table.name,
-              is_primary_key: false, // We could enhance this later
-              foreign_table_name: col.foreignKey?.referencedTable,
-              foreign_column_name: col.foreignKey?.referencedColumn,
-            })),
-            constraints,
-            indexes,
-          });
-        }
-      }
-
-      setSchema(allTables);
+      setSchema(basicTables);
+      setSchemaLoadProgress({ current: 0, total: 0 });
 
       // Update completions when schema changes
       setTimeout(() => {
@@ -479,6 +481,27 @@ export default function SQLConsolePage() {
 
   const selectedTableData = selectedTable ? schema.find(t => `${t.schema_name}.${t.table_name}` === selectedTable) : null;
 
+  // Load detailed information for selected table
+  const loadTableDetails = React.useCallback(async (schemaName: string, tableName: string) => {
+    try {
+      const tableDetails = await getSchemaBrowserTableDetails(schemaName, tableName);
+
+      // Update the schema with detailed information for this table
+      setSchema(prev => prev.map(table => 
+        table.schema_name === schemaName && table.table_name === tableName
+          ? {
+              ...table,
+              columns: tableDetails.columns,
+              constraints: tableDetails.constraints,
+              indexes: tableDetails.indexes,
+            }
+          : table
+      ));
+    } catch (error) {
+      console.error(`Failed to load details for ${schemaName}.${tableName}:`, error);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Top toolbar */}
@@ -503,8 +526,14 @@ export default function SQLConsolePage() {
 
                 <div className="flex-1 overflow-auto max-h-[90vh]">
                   {isLoadingSchema ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="text-muted-foreground text-sm">Loading schema...</div>
+                    <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                      <div className="text-muted-foreground text-sm">Loading database schema...</div>
+                      {schemaLoadProgress.total > 0 && (
+                        <div className="text-xs text-muted-foreground opacity-70">
+                          Loading table {schemaLoadProgress.current} of {schemaLoadProgress.total}
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground opacity-70">This may take a few seconds for large databases</div>
                     </div>
                   ) : (
                     <div className="p-2 pb-6">
@@ -517,7 +546,14 @@ export default function SQLConsolePage() {
                               <div
                                 key={tableKey}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-muted/50 ${selectedTable === tableKey ? 'bg-muted' : ''}`}
-                                onClick={() => setSelectedTable(tableKey)}
+                                onClick={() => {
+                                  setSelectedTable(tableKey);
+                                  // Load detailed information for the selected table
+                                  const [schemaName, tableName] = tableKey.split('.');
+                                  if (schemaName && tableName) {
+                                    loadTableDetails(schemaName, tableName);
+                                  }
+                                }}
                               >
                                 <Database className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-sm font-mono">{table.table_name}</span>
@@ -544,6 +580,9 @@ export default function SQLConsolePage() {
                         <span className="text-sm font-mono">{selectedTableData.table_name}</span>
                         <span className="text-sm text-muted-foreground">{selectedTableData.schema_name}</span>
                       </div>
+                      {selectedTableData.columns.length === 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">Loading table details...</div>
+                      )}
                     </div>
 
                     <div className="overflow-hidden min-h-0 relative flex flex-col">

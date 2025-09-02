@@ -154,7 +154,9 @@ export async function getTableData(
     column: string;
     operator: 'equals' | 'not_equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than' | 'is_null' | 'is_not_null';
     value: string;
-  }>
+  }>,
+  sortColumn?: string,
+  sortOrder: 'ASC' | 'DESC' = 'ASC'
 ) {
   try {
     const db = await getDb();
@@ -213,30 +215,15 @@ export async function getTableData(
       whereClause = sql` WHERE ${sql.join(conditions, sql``)}`;
     }
 
-    // Get the actual data from the table with filters
-    // Try to order by created_at first, then fallback to id DESC
-    let dataQuery;
-    try {
-      // Check if created_at column exists
-      const hasCreatedAt = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = ${sql.lit(schemaName)} 
-          AND table_name = ${sql.lit(tableName)} 
-          AND column_name = 'created_at'
-      `.execute(db);
-      
-      if (hasCreatedAt.rows.length > 0) {
-        dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} ORDER BY created_at DESC LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
-      } else {
-        // For string IDs, we need to be more careful with ordering
-        // Try to order by id DESC, but if that fails, use no ordering
-        dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} ORDER BY id DESC LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
-      }
-    } catch {
-      // Fallback to no ordering if there's an error
-      dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
+    // Build ORDER BY clause if sortColumn is provided
+    let orderByClause = sql``;
+    if (sortColumn) {
+      console.log(`Sorting by column: ${sortColumn} ${sortOrder}`);
+      orderByClause = sql` ORDER BY ${sql.id(sortColumn)} ${sql.raw(sortOrder)}`;
     }
+
+    // Build the main query
+    const dataQuery = sql`SELECT * FROM ${sql.id(schemaName, tableName)}${whereClause}${orderByClause} LIMIT ${sql.lit(limit)} OFFSET ${sql.lit(offset)}`;
     const data = await dataQuery.execute(db);
 
     // Get total count for pagination with filters
@@ -389,6 +376,8 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
       throw new Error('No rows selected for deletion');
     }
 
+    console.log('DeleteTableRows called with rowData:', JSON.stringify(rowData, null, 2));
+
     // Get table columns to identify primary key
     const columns = await getTableColumns(schemaName, tableName);
 
@@ -409,12 +398,44 @@ export async function deleteTableRows(schemaName: string, tableName: string, row
     const primaryKeyResult = await primaryKeyQuery.execute(db);
     const primaryKeyColumn = (primaryKeyResult.rows[0] as { column_name?: string })?.column_name || columns[0]?.name || 'id';
 
+    console.log('Primary key column for deletion:', primaryKeyColumn);
+
     // Extract primary key values from row data
     const primaryKeyValues = rowData.map(row => (row as Record<string, unknown>)[primaryKeyColumn as string]).filter(val => val != null);
 
     if (primaryKeyValues.length === 0) {
       throw new Error(`No valid primary key values found in column '${primaryKeyColumn}'`);
     }
+
+    console.log('Primary key values to delete:', primaryKeyValues);
+
+    // Check for duplicate primary key values
+    const duplicateCheckQuery = sql`
+      SELECT ${sql.id(primaryKeyColumn)}, COUNT(*) as count
+      FROM ${sql.id(schemaName, tableName)}
+      WHERE ${sql.id(primaryKeyColumn)} = ANY(${sql.lit(primaryKeyValues)})
+      GROUP BY ${sql.id(primaryKeyColumn)}
+      HAVING COUNT(*) > 1
+    `;
+    const duplicateResult = await duplicateCheckQuery.execute(db);
+    if (duplicateResult.rows.length > 0) {
+      console.log('WARNING: Found duplicate primary key values in rows to delete:', duplicateResult.rows);
+      // For duplicates, we need to be more careful - delete only one row per primary key value
+      // This is a limitation when there are duplicate primary keys
+      console.log('Deleting only the first occurrence of each duplicate primary key value');
+    }
+
+    // Execute the DELETE query
+    const deleteQuery = sql`
+      DELETE FROM ${sql.id(schemaName, tableName)}
+      WHERE ${sql.id(primaryKeyColumn)} = ANY(${sql.lit(primaryKeyValues)})
+    `;
+
+    console.log('Executing DELETE query:', deleteQuery.compile(db).sql);
+    console.log('Query parameters:', deleteQuery.compile(db).parameters);
+
+    const result = await deleteQuery.execute(db);
+    console.log('DELETE result:', result);
 
     return {
       success: true,
@@ -630,6 +651,112 @@ export async function getTableIndexes(schemaName: string, tableName: string) {
   }
 }
 
+// Lightweight actions for schema browser (SQL console)
+export async function getSchemaBrowserTables(schemaName: string) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    // Only get basic table info - no columns, constraints, or indexes
+    const result = await sql<{ table_name: string; table_type: string }>`
+      SELECT table_name, table_type 
+      FROM information_schema.tables 
+      WHERE table_schema = ${sql.lit(schemaName)} 
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name ASC
+    `.execute(db);
+
+    return result.rows.map(row => ({
+      name: row.table_name,
+      type: row.table_type,
+    }));
+  } catch (error) {
+    console.error('Error fetching schema browser tables:', error);
+    throw new Error(`Failed to fetch tables for schema browser: ${schemaName}`);
+  }
+}
+
+export async function getSchemaBrowserTableDetails(schemaName: string, tableName: string) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('No database connection available');
+    }
+
+    // Get only essential column information for schema browser
+    const columnsResult = await sql<{ 
+      column_name: string; 
+      data_type: string; 
+      is_nullable: string;
+      column_default: string | null;
+    }>`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_schema = ${sql.lit(schemaName)} 
+        AND table_name = ${sql.lit(tableName)}
+      ORDER BY ordinal_position ASC
+    `.execute(db);
+
+    // Get only essential constraint information
+    const constraintsResult = await sql<{
+      constraint_name: string;
+      constraint_type: string;
+      constraint_definition: string;
+    }>`
+      SELECT 
+        tc.constraint_name,
+        tc.constraint_type,
+        pg_get_constraintdef(pgc.oid) as constraint_definition
+      FROM information_schema.table_constraints tc
+      JOIN pg_constraint pgc ON pgc.conname = tc.constraint_name
+      WHERE tc.table_schema = ${sql.lit(schemaName)}
+        AND tc.table_name = ${sql.lit(tableName)}
+      ORDER BY tc.constraint_name
+    `.execute(db);
+
+    // Get only essential index information
+    const indexesResult = await sql<{
+      indexname: string;
+      indexdef: string;
+    }>`
+      SELECT 
+        indexname,
+        indexdef
+      FROM pg_indexes
+      WHERE schemaname = ${sql.lit(schemaName)}
+        AND tablename = ${sql.lit(tableName)}
+      ORDER BY indexname
+    `.execute(db);
+
+    return {
+      columns: columnsResult.rows.map(row => ({
+        column_name: row.column_name,
+        data_type: row.data_type,
+        is_nullable: row.is_nullable === 'YES',
+        column_default: row.column_default,
+        table_name: tableName,
+        is_primary_key: false, // Will be determined from constraints if needed
+        foreign_table_name: null, // Not needed for schema browser
+        foreign_column_name: null,
+      })),
+      constraints: constraintsResult.rows.map(row => ({
+        constraint_name: row.constraint_name,
+        constraint_type: row.constraint_type,
+        definition: row.constraint_definition,
+      })),
+      indexes: indexesResult.rows.map(row => ({
+        indexname: row.indexname,
+        indexdef: row.indexdef,
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching schema browser table details:', error);
+    throw new Error(`Failed to fetch table details for schema browser: ${tableName}`);
+  }
+}
+
 export async function updateTableData(
   schemaName: string,
   tableName: string,
@@ -649,87 +776,45 @@ export async function updateTableData(
 
     console.log('UpdateTableData called with changes:', JSON.stringify(changes, null, 2));
 
-    // Get table columns to identify primary key
-
-    // Query to find the actual primary key column
-    const primaryKeyQuery = sql`
-      SELECT kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu 
-        ON tc.constraint_name = kcu.constraint_name
-        AND tc.table_schema = kcu.table_schema
-      WHERE tc.constraint_type = 'PRIMARY KEY'
-        AND tc.table_schema = ${sql.lit(schemaName)}
-        AND tc.table_name = ${sql.lit(tableName)}
-      ORDER BY kcu.ordinal_position
-      LIMIT 1
-    `;
-
-    const primaryKeyResult = await primaryKeyQuery.execute(db);
-    const primaryKeyColumn = (primaryKeyResult.rows[0] as { column_name?: string })?.column_name;
-    
-    if (!primaryKeyColumn) {
-      throw new Error('No primary key constraint found for table');
-    }
-    
-    console.log('Primary key column identified:', primaryKeyColumn);
-
-    // Check if there are duplicate primary key values in the database
-    const duplicateCheckQuery = sql`
-      SELECT ${sql.id(primaryKeyColumn)}, COUNT(*) as count
-      FROM ${sql.id(schemaName, tableName)}
-      GROUP BY ${sql.id(primaryKeyColumn)}
-      HAVING COUNT(*) > 1
-    `;
-    const duplicateResult = await duplicateCheckQuery.execute(db);
-    if (duplicateResult.rows.length > 0) {
-      console.log('WARNING: Found duplicate primary key values:', duplicateResult.rows);
-    } else {
-      console.log('No duplicate primary key values found');
-    }
-
-    // Group changes by row using the primary key
-    const changesByRow = new Map<string, Array<{ column: string; newValue: unknown }>>();
+    // Group changes by row index to handle duplicate primary keys
+    const changesByRowIndex = new Map<number, Array<{ column: string; newValue: unknown }>>();
     
     changes.forEach(change => {
-      const rowId = (change.row as Record<string, unknown>)[primaryKeyColumn as string];
-      console.log('Row data:', change.row, 'Primary key value:', rowId);
-      console.log('Primary key column name:', primaryKeyColumn);
-      console.log('All row keys:', Object.keys(change.row));
+      const rowIndex = change.rowIndex;
+      console.log('Processing change for row index:', rowIndex, 'column:', change.column);
       
-      if (!rowId) {
-        throw new Error(`Cannot update row: no primary key (${primaryKeyColumn}) found in row data: ${JSON.stringify(change.row)}`);
+      if (!changesByRowIndex.has(rowIndex)) {
+        changesByRowIndex.set(rowIndex, []);
       }
-      
-      const rowIdStr = String(rowId);
-      if (!changesByRow.has(rowIdStr)) {
-        changesByRow.set(rowIdStr, []);
-      }
-      changesByRow.get(rowIdStr)!.push({
+      changesByRowIndex.get(rowIndex)!.push({
         column: change.column,
         newValue: change.newValue
       });
     });
 
-    console.log('Changes grouped by row:', Array.from(changesByRow.entries()));
+    console.log('Changes grouped by row index:', Array.from(changesByRowIndex.entries()));
 
-    // Execute updates for each row
-    const updatePromises = Array.from(changesByRow.entries()).map(async ([rowId, rowChanges]) => {
+    // Execute updates for each row using row position instead of primary key
+    const updatePromises = Array.from(changesByRowIndex.entries()).map(async ([rowIndex, rowChanges]) => {
       // Build SET clause for all columns being updated in this row
       const setClauses = rowChanges.map(change => 
         sql`${sql.id(change.column)} = ${sql.lit(change.newValue)}`
       );
 
-      // Build UPDATE query using the primary key
+      // Use a subquery with LIMIT and OFFSET to target the exact row by position
+      // This avoids issues with duplicate primary keys
       const updateQuery = sql`
         UPDATE ${sql.id(schemaName, tableName)}
         SET ${sql.join(setClauses, sql`, `)}
-        WHERE ${sql.id(primaryKeyColumn)} = ${sql.lit(rowId)}
+        WHERE ctid = (
+          SELECT ctid 
+          FROM ${sql.id(schemaName, tableName)}
+          ORDER BY ctid
+          LIMIT 1 OFFSET ${sql.lit(rowIndex)}
+        )
       `;
 
-      console.log('Executing UPDATE for row:', rowId, 'with changes:', rowChanges);
-      console.log('Primary key column:', primaryKeyColumn);
-      console.log('Row ID value:', rowId);
+      console.log('Executing UPDATE for row index:', rowIndex, 'with changes:', rowChanges);
       console.log('Generated SQL query:', updateQuery.compile(db).sql);
       console.log('Query parameters:', updateQuery.compile(db).parameters);
       

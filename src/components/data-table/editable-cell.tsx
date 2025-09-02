@@ -145,6 +145,13 @@ export function EditableCell({
   return (
     <MonacoEditorPopover
       value={value}
+      defaultValue={
+        value === null || value === undefined 
+          ? '' 
+          : typeof value === 'object' 
+            ? JSON.stringify(value, null, 2)
+            : String(value)
+      }
       dataType={dataType}
       nullable={nullable}
       onSave={newValue => {

@@ -27,7 +27,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
     <TooltipProvider>
       <div className="flex items-center justify-center space-x-2">
         <div className="flex items-center text-xs font-mono font-medium text-muted-foreground">
-          {table.getRowModel().rows.length} rows | {table.getState().pagination.pageSize * table.getState().pagination.pageIndex + table.getRowModel().rows.length > 0 ? '803ms' : '0ms'}
+          {table.getRowModel().rows.length} of {table.getPageCount() * table.getState().pagination.pageSize} rows | {table.getState().pagination.pageSize * table.getState().pagination.pageIndex + table.getRowModel().rows.length > 0 ? '803ms' : '0ms'}
         </div>
         <div className="flex items-center">
           <Button variant="outline" className="h-8 w-8 p-0 rounded-r-none" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>

@@ -11,6 +11,7 @@ import * as monaco from 'monaco-editor';
 
 interface MonacoEditorPopoverProps {
   value: unknown;
+  defaultValue?: string;
   dataType?: string;
   nullable?: boolean;
   onSave: (value: unknown) => void;
@@ -22,7 +23,7 @@ interface MonacoEditorPopoverProps {
   ancorClass?: string;
 }
 
-export function MonacoEditorPopover({ value, dataType, nullable = false, onSave, onCancel, trigger, children, disabled = false, className, ancorClass }: MonacoEditorPopoverProps) {
+export function MonacoEditorPopover({ value, defaultValue, dataType, nullable = false, onSave, onCancel, trigger, children, disabled = false, className, ancorClass }: MonacoEditorPopoverProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [language, setLanguage] = React.useState<EditorLanguage>('plaintext');
   const editorRef = React.useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null);
@@ -59,24 +60,27 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
     setIsOpen(false);
   }, [onCancel]);
 
-  // Initialize editor value and language when popover opens
+  // Convert value to string for editor display
+  const getStringValue = React.useCallback(() => {
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
+    
+    if (value === null || value === undefined) {
+      return '';
+    } else if (typeof value === 'object') {
+      return JSON.stringify(value, null, 2);
+    } else {
+      return String(value);
+    }
+  }, [value, defaultValue]);
+
+  // Update editor value when value prop changes (only when popover is open)
   React.useEffect(() => {
     if (isOpen && editorRef.current) {
-      // Convert value to string for editor
-      let stringValue = '';
-      if (value === null || value === undefined) {
-        stringValue = '';
-      } else if (typeof value === 'object') {
-        stringValue = JSON.stringify(value, null, 2);
-      } else {
-        stringValue = String(value);
-      }
-
-      editorRef.current.setValue(stringValue);
-      setLanguage(getEditorLanguage(dataType));
+      editorRef.current.setValue(getStringValue());
     }
-  }, [isOpen, value, dataType]);
-
+  }, [isOpen, getStringValue]);
 
   const handleSetNull = () => {
     onSave(null);
@@ -99,6 +103,10 @@ export function MonacoEditorPopover({ value, dataType, nullable = false, onSave,
           <Editor
             onMount={(editor) => {
               editorRef.current = editor;
+              
+              // Set initial value
+              editor.setValue(getStringValue());
+              setLanguage(getEditorLanguage(dataType));
               
               // Register Ctrl+Enter shortcut directly with Monaco
               editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {

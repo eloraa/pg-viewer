@@ -119,6 +119,7 @@ export const FilterPanel = ({ columns, filters, onFiltersChange, onClearFilters,
             <div className="relative flex items-center group">
               <MonacoEditorPopover
                 value={filter.value}
+                defaultValue={filter.value || ''}
                 dataType="text"
                 nullable={true}
                 onSave={newValue => {

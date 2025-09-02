@@ -411,13 +411,14 @@ export function TableViewer() {
             isEditable={true}
             onCellChange={handleCellChange}
             resetTrigger={resetTrigger}
-                         pagination={pagination}
-             onPaginationChange={(newPagination) => {
-               // Update local pagination state
-               setPagination(newPagination);
-             }}
-             onSelectionChange={setSelectedRows}
-             onTableInstance={setTableInstance}
+            pagination={pagination}
+            pageCount={tableData ? Math.ceil(tableData.total / pagination.pageSize) : 0}
+            onPaginationChange={(newPagination) => {
+              // Update local pagination state
+              setPagination(newPagination);
+            }}
+            onSelectionChange={setSelectedRows}
+            onTableInstance={setTableInstance}
             customFilter={[
               {
                 filter: RefreshButton,

@@ -57,11 +57,13 @@ export const useTableData = (
     value: string;
   }>,
   limit: number = 100, 
-  offset: number = 0
+  offset: number = 0,
+  sortColumn?: string,
+  sortOrder: 'ASC' | 'DESC' = 'ASC'
 ) => {
   return useQuery({
-    queryKey: ['tableData', schemaName, tableName, filters, limit, offset],
-    queryFn: () => getTableData(schemaName!, tableName!, limit, offset, filters),
+    queryKey: ['tableData', schemaName, tableName, filters, limit, offset, sortColumn, sortOrder],
+    queryFn: () => getTableData(schemaName!, tableName!, limit, offset, filters, sortColumn, sortOrder),
     enabled: !!schemaName && !!tableName,
     staleTime: 2 * 60 * 1000, // 2 minutes (shorter for data)
   });

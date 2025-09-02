@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Elora',
+  title: 'pg',
 };
 
 export async function generateViewport(): Promise<Viewport> {
