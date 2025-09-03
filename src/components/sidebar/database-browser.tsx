@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useSchemas, useTables, type DatabaseTable } from '@/data/schema/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,15 +13,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { DatabaseActionDialogs, type DatabaseAction } from './database-action-dialogs';
 import { SQLConsoleDialog } from './sql-console-dialog';
 
-
 export const DatabaseBrowser = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   // Get current values from search params
   const selectedSchema = searchParams.get('schema');
   const selectedTable = searchParams.get('table');
-  
+
   const [dialogAction, setDialogAction] = React.useState<DatabaseAction | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
@@ -31,6 +31,8 @@ export const DatabaseBrowser = () => {
   // Update URL when schema/table changes
   const updateSearchParams = React.useCallback(
     (schema: string | null, table: string | null) => {
+      if (pathname !== '/') return;
+      
       const params = new URLSearchParams(searchParams.toString());
 
       if (schema) {
@@ -45,7 +47,7 @@ export const DatabaseBrowser = () => {
         params.delete('table');
       }
 
-      router.push(`?${params.toString()}`);
+      router.push(`/?${params.toString()}`);
     },
     [searchParams, router]
   );
@@ -175,8 +177,14 @@ export const DatabaseBrowser = () => {
             <div className="text-sm text-destructive">Error loading tables: {tablesError.message}</div>
           ) : tables && tables.length > 0 ? (
             <div className="space-y-1">
-              {(tables as DatabaseTable[]).map((table) => (
-                <Button key={table.name} size='sm' className="w-full justify-start cursor-pointer" variant={selectedTable === table.name ? 'secondary' : 'ghost'} onClick={() => handleTableClick(table.name)}>
+              {(tables as DatabaseTable[]).map(table => (
+                <Button
+                  key={table.name}
+                  size="sm"
+                  className="w-full justify-start cursor-pointer"
+                  variant={selectedTable === table.name ? 'secondary' : 'ghost'}
+                  onClick={() => handleTableClick(table.name)}
+                >
                   <TableIcon />
                   <span className="truncate min-w-0">{table.name}</span>
                 </Button>
@@ -190,10 +198,9 @@ export const DatabaseBrowser = () => {
             </div>
           )}
         </div>
-      )
-      }
+      )}
 
       <DatabaseActionDialogs action={dialogAction} isOpen={isDialogOpen} onClose={handleDialogClose} selectedSchema={selectedSchema} />
-    </div >
+    </div>
   );
 };

@@ -22,6 +22,7 @@ import { RefreshButton } from '@/components/data-table/refresh-table';
 import { FilterButton } from './filter-button';
 import { FilterPanel } from './filter-panel';
 import { scoreMatch } from '@/lib/search';
+import { Spinner } from '@/components/ui/spinner';
 
 export function TableViewer() {
   const searchParams = useSearchParams();
@@ -250,20 +251,20 @@ export function TableViewer() {
   const createCustomFilterFn = (dataType: string) => {
     return (row: { getValue: (columnId: string) => unknown }, columnId: string, filterValue: string) => {
       if (!filterValue) return true;
-      
+
       const value = row.getValue(columnId);
       const searchTerm = filterValue.toLowerCase().trim();
-      
+
       // Handle null/undefined values with partial matching
       if (value === null || value === undefined) {
         // Check if search term is related to null (partial matching)
         const nullKeywords = ['null', 'nul', 'nu', 'n', 'empty', 'empt', 'emp', 'em', 'e', 'none', 'non', 'no'];
         return nullKeywords.some(keyword => keyword.includes(searchTerm) || searchTerm.includes(keyword));
       }
-      
+
       // Convert value to string for searching
       let searchableValue: string;
-      
+
       // Handle different data types
       switch (dataType) {
         case 'boolean':
@@ -276,7 +277,7 @@ export function TableViewer() {
             return searchableValue === 'false';
           }
           return searchableValue.includes(searchTerm);
-          
+
         case 'integer':
         case 'bigint':
         case 'numeric':
@@ -285,7 +286,7 @@ export function TableViewer() {
         case 'double precision':
           searchableValue = String(value).toLowerCase();
           return searchableValue.includes(searchTerm);
-          
+
         case 'timestamp with time zone':
         case 'timestamp without time zone':
         case 'timestamptz':
@@ -312,7 +313,7 @@ export function TableViewer() {
             searchableValue = String(value).toLowerCase();
           }
           return searchableValue.includes(searchTerm);
-          
+
         case 'json':
         case 'jsonb':
           try {
@@ -322,16 +323,16 @@ export function TableViewer() {
             searchableValue = String(value).toLowerCase();
           }
           return searchableValue.includes(searchTerm);
-          
+
         default:
           // For text types and others, use fuzzy matching for better results
           searchableValue = String(value).toLowerCase();
-          
+
           // First try simple includes for exact matches (fastest)
           if (searchableValue.includes(searchTerm)) {
             return true;
           }
-          
+
           // Then use advanced fuzzy matching for partial matches
           const fuzzyScore = scoreMatch(searchableValue, searchTerm);
           // Use a lower threshold for fuzzy matching to be more permissive
@@ -464,6 +465,14 @@ export function TableViewer() {
     );
   }
 
+  if (dataLoading) {
+    return (
+      <div className="size-full flex items-center justify-center">
+        <Spinner className="size-8" />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex-1 overflow-hidden py-1 h-full flex">
@@ -474,11 +483,12 @@ export function TableViewer() {
             placeholder={`Search in ${table}...`}
             toolbarClassName={cn(isExpanded ? 'md:pr-14' : 'md:pl-4 md:pr-4.5')}
             search={dataColumns
-              .filter(col => 
-                col.accessorKey && 
-                col.accessorKey.trim() !== '' && 
-                !col.accessorKey.startsWith('fk_') && // Exclude foreign key columns
-                col.accessorKey !== 'ctid' // Exclude ctid column from search
+              .filter(
+                col =>
+                  col.accessorKey &&
+                  col.accessorKey.trim() !== '' &&
+                  !col.accessorKey.startsWith('fk_') && // Exclude foreign key columns
+                  col.accessorKey !== 'ctid' // Exclude ctid column from search
               )
               .map(col => ({
                 label: col.accessorKey!,
