@@ -1,6 +1,6 @@
 {
-  "name": "pg-viewer-cli",
-  "version": "0.0.11-beta",
+  "name": "pg-viewer",
+  "version": "0.0.3-beta",
   "description": "A PostgreSQL database viewer with a web interface you can run locally",
   "main": "cli.mjs",
   "bin": "./cli.mjs",
@@ -17,14 +17,20 @@
   "homepage": "https://pg.aruu.me",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eloraa/db-viewer"
+    "url": "https://github.com/eloraa/pg-viewer"
   },
   "files": [
     "cli.mjs",
     ".next/**/*",
     "https/certs/**/*",
     "next.config.ts",
-    "README.md"
+    "README.md",
+    "!.next/cache/",
+    "!.next/trace",
+    "!.next/turbopack/",
+    "!.next/types/",
+    "!**/*.map",
+    "!.env*"
   ],
   "engines": {
     "node": ">=18.0.0"

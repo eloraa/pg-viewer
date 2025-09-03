@@ -3,6 +3,8 @@
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
+process.env.NODE_ENV = "production"; 
+ 
 // Get the CLI's directory location
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -14,6 +16,10 @@ import TextInput from 'ink-text-input';
 import SelectInput from 'ink-select-input';
 import chalk from 'chalk';
 
+process.env.NODE_ENV = "production"; 
+ 
+process.env.NODE_ENV = "production"; 
+ 
 const color = (input, fallback) => {
   if (typeof input === 'string') {
     if (supportsColor.has16m && input.trim() !== '') {
@@ -38,6 +44,10 @@ import { createServer as createHttpServer } from 'http';
 import path from 'path';
 import { supportsColor } from 'chalk';
 
+process.env.NODE_ENV = "production"; 
+ 
+process.env.NODE_ENV = "production"; 
+ 
 const ascii =
   chalk.white.bold(`
 ███████      `) +
@@ -151,7 +161,7 @@ async function findAvailablePort(startPort) {
   const isPortAvailable = port => {
     return new Promise(resolve => {
       const server = createHttpServer();
-      server.listen(port, () => {
+      server.listen(port, '127.0.0.1', () => {
         server.once('close', () => {
           resolve(true);
         });
@@ -164,10 +174,17 @@ async function findAvailablePort(startPort) {
   };
 
   let currentPort = startPort;
-  while (!(await isPortAvailable(currentPort))) {
-    currentPort++;
+  try {
+    while (!(await isPortAvailable(currentPort))) {
+      currentPort++;
+      if (currentPort > startPort + 100) {
+        throw new Error(`No available ports found after checking ${startPort}-${currentPort}`);
+      }
+    }
+    return currentPort;
+  } catch (error) {
+    throw new Error(`Failed to find available port: ${error.message}`);
   }
-  return currentPort;
 }
 
 async function fetchCertificate(url) {
@@ -184,7 +201,12 @@ async function startServer(databaseUrl) {
 
   const port = parseInt(process.env.PORT || '3000', 10);
   
-  const app = next({ dir: __dirname });
+  const availablePort = await findAvailablePort(port);
+  
+  const app = next({ 
+    dir: __dirname,
+    port: availablePort 
+  });
   const handle = app.getRequestHandler();
 
   // Fetch SSL certificates from remote server
@@ -199,14 +221,25 @@ async function startServer(databaseUrl) {
   };
 
   await app.prepare();
-  const availablePort = await findAvailablePort(port);
 
-  createServer(sslOptions, (req, res) => {
+  const server = createServer(sslOptions, (req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
-  }).listen(availablePort, 'local.pg.aruu.me');
+  });
 
-  return availablePort;
+  return new Promise((resolve, reject) => {
+    server.listen(availablePort, 'local.pg.aruu.me', (error) => {
+      if (error) {
+        reject(new Error(`Failed to start server on port ${availablePort}: ${error.message}`));
+      } else {
+        resolve(availablePort);
+      }
+    });
+
+    server.on('error', (error) => {
+      reject(new Error(`Server error on port ${availablePort}: ${error.message}`));
+    });
+  });
 }
 
 function UrlPrompt({ onSubmit }) {
@@ -392,7 +425,7 @@ function App({ initialUrl }) {
 const program = new Command();
 
 program
-  .name('db-viewer')
+  .name('pg-viewer')
   .description('Database Viewer - Start Next.js server with PostgreSQL database')
   .version('1.0.0')
   .option('-u, --url <url>', 'PostgreSQL database URL')

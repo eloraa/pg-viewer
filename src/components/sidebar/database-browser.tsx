@@ -49,7 +49,7 @@ export const DatabaseBrowser = () => {
 
       router.push(`/?${params.toString()}`);
     },
-    [searchParams, router]
+    [searchParams, router, pathname]
   );
 
   // Auto-select the first schema when schemas are loaded
