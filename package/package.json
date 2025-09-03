@@ -1,6 +1,6 @@
 {
   "name": "pg-viewer",
-  "version": "0.0.3-beta",
+  "version": "0.0.4-beta",
   "description": "A PostgreSQL database viewer with a web interface you can run locally",
   "main": "cli.mjs",
   "bin": "./cli.mjs",

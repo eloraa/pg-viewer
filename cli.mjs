@@ -3,7 +3,6 @@
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-process.env.NODE_ENV = "production"; 
  
 // Get the CLI's directory location
 const __filename = fileURLToPath(import.meta.url);
@@ -16,9 +15,6 @@ import TextInput from 'ink-text-input';
 import SelectInput from 'ink-select-input';
 import chalk from 'chalk';
 
-process.env.NODE_ENV = "production"; 
- 
-process.env.NODE_ENV = "production"; 
  
 const color = (input, fallback) => {
   if (typeof input === 'string') {
@@ -43,10 +39,6 @@ import next from 'next';
 import { createServer as createHttpServer } from 'http';
 import path from 'path';
 import { supportsColor } from 'chalk';
-
-process.env.NODE_ENV = "production"; 
- 
-process.env.NODE_ENV = "production"; 
  
 const ascii =
   chalk.white.bold(`
