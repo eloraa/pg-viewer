@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PG Viewer
 
-## Getting Started
+A modern, intuitive PostgreSQL database viewer and management tool built with Next.js. Browse your database schema, run queries, and manage your data with a beautiful interface.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
+- 🔍 **Database Explorer** - Browse tables, views, and schema with an intuitive UI
+- ⚡ **SQL Editor** - Write and execute queries with Monaco Editor
+- 📊 **Data Visualization** - View query results in a clean table format
+- 🎨 **Modern UI** - Built with Radix UI and Tailwind CSS
+- 🖥️ **CLI Support** - Launch via command line for quick access
+- 🔐 **Secure Connections** - Support for PostgreSQL connection strings
+
+## Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Database**: PostgreSQL via Kysely query builder
+- **UI Components**: Radix UI primitives
+- **Styling**: Tailwind CSS
+- **State Management**: Zustand
+- **Forms**: React Hook Form with Zod validation
+- **Code Editor**: Monaco Editor
+
+## Installation
+
+\`\`\`bash
+# Clone the repository
+git clone https://github.com/eloraa/pg-viewer.git
+cd pg-viewer
+
+# Install dependencies
+pnpm install
 # or
-yarn dev
-# or
+npm install
+\`\`\`
+
+## Usage
+
+### Web Interface
+
+Run the development server:
+
+\`\`\`bash
 pnpm dev
 # or
-bun dev
-```
+npm run dev
+\`\`\`
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### CLI
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Launch pg-viewer from the command line:
 
-## Learn More
+\`\`\`bash
+pnpm cli
+# or
+npm run cli
+\`\`\`
 
-To learn more about Next.js, take a look at the following resources:
+The CLI will guide you through:
+- Entering your PostgreSQL connection string
+- Selecting HTTP/HTTPS mode
+- Configuring SSL certificates (if needed)
+- Launching the web interface
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database Connection
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Connect to your PostgreSQL database using a standard connection string:
 
-## Deploy on Vercel
+\`\`\`
+postgresql://username:password@host:port/database
+\`\`\`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The connection is secure and your credentials are handled safely.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Development
+
+\`\`\`bash
+# Run development server
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Run linter
+pnpm lint
+
+# Type checking
+pnpm typecheck
+\`\`\`
+
+## Building for Distribution
+
+\`\`\`bash
+# Build and package
+pnpm package:build
+
+# Publish package
+pnpm package:publish
+\`\`\`
+
+## Project Structure
+
+\`\`\`
+pg-viewer/
+├── src/
+│   ├── app/          # Next.js app directory
+│   ├── components/   # React components
+│   └── lib/          # Utilities and server functions
+├── cli.mjs           # CLI entry point
+└── package/          # Distribution files
+\`\`\`
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Built With
+
+- [Next.js](https://nextjs.org/) - React framework
+- [Kysely](https://kysely.dev/) - Type-safe SQL query builder
+- [Radix UI](https://www.radix-ui.com/) - Unstyled UI primitives
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) - Code editor
