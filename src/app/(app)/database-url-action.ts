@@ -12,7 +12,6 @@ export async function setDatabaseUrl(databaseUrl: string) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     path: '/',
-    maxAge: 0,
   });
 
   redirect('/');
